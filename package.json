@@ -1,0 +1,11 @@
+{
+  "name": "docuchat",
+  "version": "1.0.0",
+  "description": "AI-powered document Q&A chatbot",
+  "scripts": {
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm start",
+    "setup": "npm run install:all && echo '\n✅ Setup complete! See README.md for next steps.'"
+  }
+}
