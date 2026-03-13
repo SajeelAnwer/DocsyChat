@@ -1,4 +1,4 @@
-# 📄 DocuChat — AI Document Q&A Chatbot
+# 📄 DocuChat v2 — AI Document Q&A Chatbot
 
 A full-stack AI chatbot that answers questions **only** based on documents you upload. Built with React + Node.js/Express, powered by Google Gemini (free) or OpenAI.
 
@@ -6,13 +6,14 @@ A full-stack AI chatbot that answers questions **only** based on documents you u
 
 ## 🛠 Tech Stack
 
-| Layer     | Tech                              |
-|-----------|-----------------------------------|
-| Frontend  | React 18, CSS Variables           |
-| Backend   | Node.js, Express                  |
-| AI        | Google Gemini 1.5 Flash (free) or OpenAI GPT-3.5 |
-| File Parsing | pdf-parse, mammoth (docx)      |
-| Storage   | In-memory (no DB needed for demo) |
+| Layer        | Tech                                          |
+|--------------|-----------------------------------------------|
+| Frontend     | React 18, CSS Variables                       |
+| Backend      | Node.js, Express                              |
+| AI           | Google Gemini 2.5 Flash Lite (free) or OpenAI GPT-3.5 |
+| File Parsing | pdf-parse, mammoth (docx)                     |
+| Storage      | In-memory (no DB needed for demo)             |
+| Fonts        | Fraunces (display) + Instrument Sans (body)   |
 
 ---
 
@@ -26,6 +27,8 @@ A full-stack AI chatbot that answers questions **only** based on documents you u
 4. Copy the key
 
 ### Step 2 — Configure the backend
+
+Open `Env File Contents (read me).txt` and do the mentioned steps.
 
 Open `backend/.env` and add your key:
 
@@ -121,7 +124,7 @@ OPENAI_API_KEY=your_key
 
 When ready to deploy:
 - **Backend**: Deploy to Railway, Render, or Fly.io (add env vars in dashboard)
-- **Frontend**: Deploy to Vercel or Netlify (update `proxy` in package.json to backend URL)
+- **Frontend**: Deploy to Vercel or Netlify (update `proxy` in `frontend/package.json` to your backend URL)
 - **Data persistence**: Replace `utils/store.js` with a real database (PostgreSQL recommended)
 
 ---
@@ -132,3 +135,4 @@ When ready to deploy:
 - Max file size: 10MB
 - Large documents are truncated to ~30,000 characters to fit AI context limits
 - Rate limited to 100 requests per 15 minutes
+- Gemini free tier may have regional restrictions — if you hit quota errors, check your region's availability

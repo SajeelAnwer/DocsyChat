@@ -15,11 +15,9 @@ export default function UploadZone({ user, onUploadComplete }) {
       setError('Only PDF, DOCX, and TXT files are supported.');
       return;
     }
-
     setError('');
     setFileName(file.name);
     setUploading(true);
-
     try {
       const result = await uploadDocument(file, user.firstName, user.lastName, user.id);
       onUploadComplete(result);
@@ -40,8 +38,18 @@ export default function UploadZone({ user, onUploadComplete }) {
   return (
     <div className="upload-prompt">
       <div className="upload-prompt__inner">
-        <h2>Hey {user.firstName}, ready to <span>explore a document?</span></h2>
-        <p>Upload a PDF, Word doc, or text file and I'll answer any questions about its contents.</p>
+        <div className="upload-prompt__eyebrow">
+          <span>✦</span> Document Q&A
+        </div>
+
+        <h2>
+          Hey {user.firstName},<br />
+          what are we <em>reading today?</em>
+        </h2>
+
+        <p className="upload-prompt__sub">
+          Drop any document below and I'll answer your questions based strictly on its contents.
+        </p>
 
         <div
           className={`upload-zone ${dragging ? 'dragging' : ''}`}
@@ -57,13 +65,17 @@ export default function UploadZone({ user, onUploadComplete }) {
             onChange={e => processFile(e.target.files[0])}
             disabled={uploading}
           />
-          <div className="upload-zone__icon">
-            {dragging ? '📂' : '📎'}
+          <div className="upload-zone__row">
+            <div className="upload-zone__icon-wrap">
+              {dragging ? '📂' : '📎'}
+            </div>
+            <div className="upload-zone__text-group">
+              <div className="upload-zone__text">
+                {dragging ? 'Release to upload' : 'Click to browse or drag & drop'}
+              </div>
+              <div className="upload-zone__hint">Max 10 MB document</div>
+            </div>
           </div>
-          <div className="upload-zone__text">
-            {dragging ? 'Drop it here!' : 'Click to upload or drag & drop'}
-          </div>
-          <div className="upload-zone__hint">Max 10MB</div>
           <div className="upload-zone__types">
             <span className="badge">PDF</span>
             <span className="badge">DOCX</span>
@@ -75,13 +87,13 @@ export default function UploadZone({ user, onUploadComplete }) {
           <div className="upload-progress">
             <div className="upload-spinner" />
             <div className="upload-progress-text">
-              Processing <strong>{fileName}</strong>...
+              Reading <strong>{fileName}</strong>…
             </div>
           </div>
         )}
 
         {error && (
-          <div className="error-toast" style={{ marginTop: '16px' }}>
+          <div className="error-toast" style={{ marginTop: '14px' }}>
             ⚠️ {error}
           </div>
         )}
