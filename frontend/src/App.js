@@ -1,34 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import './styles/globals.css';
 import './styles/app.css';
-import WelcomeScreen from './components/WelcomeScreen';
+import AuthScreen from './components/AuthScreen';
 import ChatLayout from './components/ChatLayout';
+import { getMe } from './utils/api';
 
 function App() {
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Persist user session in localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('docuchat_user');
-    if (saved) {
-      try { setUser(JSON.parse(saved)); } catch {}
-    }
+    const token = localStorage.getItem('docsychat_token');
+    if (!token) { setLoading(false); return; }
+    getMe()
+      .then(data => setUser(data.user))
+      .catch(() => { localStorage.removeItem('docsychat_token'); })
+      .finally(() => setLoading(false));
   }, []);
 
-  const handleUserSet = (userData) => {
-    localStorage.setItem('docuchat_user', JSON.stringify(userData));
+  const handleAuthSuccess = (token, userData) => {
+    localStorage.setItem('docsychat_token', token);
     setUser(userData);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('docuchat_user');
+    localStorage.removeItem('docsychat_token');
     setUser(null);
   };
 
-  if (!user) {
-    return <WelcomeScreen onUserSet={handleUserSet} />;
+  if (loading) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-base)' }}>
+        <div className="upload-spinner" style={{ width: 28, height: 28 }} />
+      </div>
+    );
   }
 
+  if (!user) return <AuthScreen onAuthSuccess={handleAuthSuccess} />;
   return <ChatLayout user={user} onLogout={handleLogout} />;
 }
 

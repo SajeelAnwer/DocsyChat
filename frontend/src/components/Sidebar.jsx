@@ -24,7 +24,7 @@ export default function Sidebar({ user, threads, activeThreadId, onSelectThread,
       <div className="sidebar__top">
         <div className="sidebar__brand">
           <div className="sidebar__brand-mark"><DocIcon /></div>
-          <span className="sidebar__brand-name">DocuChat</span>
+          <span className="sidebar__brand-name">DocsyChat</span>
         </div>
       </div>
 
@@ -34,16 +34,12 @@ export default function Sidebar({ user, threads, activeThreadId, onSelectThread,
       </button>
 
       <div className="sidebar__threads">
-        {threads.length > 0 && (
-          <div className="sidebar__threads-label">Recent</div>
-        )}
+        {threads.length > 0 && <div className="sidebar__threads-label">Recent</div>}
         {threads.length === 0 ? (
           <div className="threads-empty">
             <div className="threads-empty-icon">📂</div>
             <div>No chats yet.</div>
-            <div style={{ fontSize: '12px', marginTop: '4px', opacity: 0.7 }}>
-              Upload a document to begin.
-            </div>
+            <div style={{ fontSize: '12px', marginTop: '4px', opacity: 0.7 }}>Upload a document to begin.</div>
           </div>
         ) : (
           threads.map(thread => (
@@ -54,15 +50,13 @@ export default function Sidebar({ user, threads, activeThreadId, onSelectThread,
             >
               <div className="thread-item__title">{thread.title}</div>
               <div className="thread-item__meta">
-                <span className="thread-item__meta-file">{thread.fileName}</span>
+                <span className="thread-item__meta-file">{thread.file_name}</span>
                 <span>·</span>
-                <span style={{ flexShrink: 0 }}>{timeAgo(thread.createdAt)}</span>
+                <span style={{ flexShrink: 0 }}>{timeAgo(thread.created_at)}</span>
               </div>
-              <button
-                className="thread-item__delete"
+              <button className="thread-item__delete"
                 onClick={e => { e.stopPropagation(); onDeleteThread(thread.id); }}
-                title="Delete"
-              >✕</button>
+                title="Delete">✕</button>
             </div>
           ))
         )}
@@ -73,8 +67,9 @@ export default function Sidebar({ user, threads, activeThreadId, onSelectThread,
           <div className="sidebar__avatar">{initials}</div>
           <div className="sidebar__user-info">
             <div className="sidebar__username">{user.fullName}</div>
+            <div className="sidebar__useremail">{user.email}</div>
           </div>
-          <button className="sidebar__logout" onClick={onLogout} title="Change user">↩</button>
+          <button className="sidebar__logout" onClick={onLogout} title="Sign out">↩</button>
         </div>
       </div>
     </aside>

@@ -12,12 +12,10 @@ export default function ChatLayout({ user, onLogout }) {
 
   const loadThreads = useCallback(async () => {
     try {
-      const data = await getThreads(user.id);
+      const data = await getThreads();
       setThreads(data.threads || []);
-    } catch (e) {
-      console.error('Failed to load threads:', e);
-    }
-  }, [user.id]);
+    } catch (e) { console.error('Failed to load threads:', e); }
+  }, []);
 
   useEffect(() => { loadThreads(); }, [loadThreads]);
 
@@ -25,9 +23,8 @@ export default function ChatLayout({ user, onLogout }) {
     const newThread = {
       id: uploadResult.threadId,
       title: `Chat about ${uploadResult.fileName}`,
-      fileName: uploadResult.fileName,
-      createdAt: new Date().toISOString(),
-      messageCount: 0
+      file_name: uploadResult.fileName,
+      created_at: new Date().toISOString()
     };
     setThreads(prev => [newThread, ...prev]);
     setActiveThread(newThread);
@@ -57,9 +54,7 @@ export default function ChatLayout({ user, onLogout }) {
         setActiveThreadId(null);
         setShowUpload(false);
       }
-    } catch (e) {
-      console.error('Failed to delete thread:', e);
-    }
+    } catch (e) { console.error('Failed to delete thread:', e); }
   };
 
   const showingUpload = showUpload || (!activeThread && threads.length === 0);
@@ -75,7 +70,6 @@ export default function ChatLayout({ user, onLogout }) {
         onDeleteThread={handleDeleteThread}
         onLogout={onLogout}
       />
-
       <main className="chat-area">
         {showingUpload || !activeThread ? (
           <UploadZone user={user} onUploadComplete={handleUploadComplete} />

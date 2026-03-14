@@ -559,3 +559,58 @@
   .messages-container { padding: 20px 16px 8px; }
   .input-area { padding: 10px 16px 14px; }
 }
+
+/* ══════════════════════════════════════════════
+   AUTH — additional styles
+══════════════════════════════════════════════ */
+.auth-error {
+  color: #c0392b;
+  background: #fef2f2;
+  border: 1px solid rgba(220,60,60,0.18);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  padding: 9px 13px;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.auth-success {
+  color: #1a7a4a;
+  background: #f0faf5;
+  border: 1px solid rgba(26,122,74,0.18);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  padding: 9px 13px;
+  margin-bottom: 12px;
+}
+
+.auth-switch {
+  margin-top: 18px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.auth-link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 13px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.auth-link:hover { color: #6640a0; }
+
+/* Sidebar email under name */
+.sidebar__useremail {
+  font-size: 11px;
+  color: rgba(255,255,255,0.30);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}

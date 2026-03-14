@@ -2,34 +2,36 @@ import axios from 'axios';
 
 const API = axios.create({ baseURL: '/api' });
 
-export const uploadDocument = async (file, firstName, lastName, userId) => {
+// Attach JWT token to every request
+API.interceptors.request.use((config) => {
+  const token = localStorage.getItem('docsychat_token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+// ── Auth ──────────────────────────────────────────────────────────────────
+export const signup = (data) => API.post('/auth/signup', data).then(r => r.data);
+export const verifyEmail = (userId, code) => API.post('/auth/verify', { userId, code }).then(r => r.data);
+export const resendCode = (userId) => API.post('/auth/resend', { userId }).then(r => r.data);
+export const login = (data) => API.post('/auth/login', data).then(r => r.data);
+export const getMe = () => API.get('/auth/me').then(r => r.data);
+
+// ── Documents / Threads ───────────────────────────────────────────────────
+export const uploadDocument = async (file) => {
   const formData = new FormData();
   formData.append('document', file);
-  formData.append('firstName', firstName);
-  formData.append('lastName', lastName);
-  formData.append('userId', userId);
   const res = await API.post('/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   });
   return res.data;
 };
 
-export const sendMessage = async (threadId, message) => {
-  const res = await API.post(`/chat/${threadId}`, { message });
-  return res.data;
-};
+export const getThreads = () => API.get('/threads').then(r => r.data);
+export const deleteThread = (threadId) => API.delete(`/threads/${threadId}`).then(r => r.data);
 
-export const getMessages = async (threadId) => {
-  const res = await API.get(`/chat/${threadId}/messages`);
-  return res.data;
-};
+// ── Chat ──────────────────────────────────────────────────────────────────
+export const sendMessage = (threadId, message) =>
+  API.post(`/chat/${threadId}`, { message }).then(r => r.data);
 
-export const getThreads = async (userId) => {
-  const res = await API.get(`/threads/${userId}`);
-  return res.data;
-};
-
-export const deleteThread = async (threadId) => {
-  const res = await API.delete(`/threads/${threadId}`);
-  return res.data;
-};
+export const getMessages = (threadId) =>
+  API.get(`/chat/${threadId}/messages`).then(r => r.data);

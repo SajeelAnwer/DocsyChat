@@ -1,29 +1,27 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const OpenAI = require('openai');
 
-const SYSTEM_PROMPT = `You are DocuChat, an AI assistant that ONLY answers questions based on the document provided to you.
+const SYSTEM_PROMPT = `You are DocsyChat, an AI assistant that ONLY answers questions based on the document sections provided to you.
 
 STRICT RULES:
-1. You MUST only use information from the provided document to answer questions.
-2. If the question can be answered from the document, provide a clear, helpful answer and reference the relevant section.
-3. If the question is NOT related to or cannot be answered from the document, respond with something like:
-   "The document doesn't mention anything about [topic]. Based on the document, I can only answer questions related to [what the doc covers]."
-4. Never use your general knowledge to answer — only the document content.
-5. If asked who you are, say you are DocuChat, a document-focused AI assistant.
-6. Be conversational and helpful, but always ground answers in the document.
-7. When quoting or referencing the document, be specific.`;
+1. You MUST only use information from the provided document sections to answer questions.
+2. If the question can be answered from the sections, provide a clear, helpful answer.
+3. If the question is NOT answerable from the provided sections, respond with:
+   "The document doesn't mention anything about [topic]. I can only answer questions about what's in the document."
+4. Never use your general knowledge — only the document sections given.
+5. If asked who you are, say you are DocsyChat, a document-focused AI assistant.
+6. Be conversational and helpful, but always ground answers in the document sections.`;
 
-function buildDocumentContext(documentText) {
-  return `Here is the document content you must base all your answers on:\n\n---DOCUMENT START---\n${documentText}\n---DOCUMENT END---\n\nOnly answer questions based on the above document.`;
+function buildRAGContext(contextText) {
+  return `Here are the most relevant sections from the document for this question:\n\n${contextText}\n\nAnswer based strictly on these sections only.`;
 }
 
-async function askGemini(documentText, conversationHistory, userMessage) {
+async function askGemini(contextText, conversationHistory, userMessage) {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
 
-  const docContext = buildDocumentContext(documentText);
-  
-  // Build conversation for Gemini
+  const ragContext = buildRAGContext(contextText);
+
   const history = conversationHistory.slice(0, -1).map(msg => ({
     role: msg.role === 'assistant' ? 'model' : 'user',
     parts: [{ text: msg.content }]
@@ -31,8 +29,8 @@ async function askGemini(documentText, conversationHistory, userMessage) {
 
   const chat = model.startChat({
     history: [
-      { role: 'user', parts: [{ text: SYSTEM_PROMPT + '\n\n' + docContext }] },
-      { role: 'model', parts: [{ text: 'Understood. I will only answer questions based on the provided document. Please ask your questions!' }] },
+      { role: 'user', parts: [{ text: SYSTEM_PROMPT + '\n\n' + ragContext }] },
+      { role: 'model', parts: [{ text: 'Understood. I will only answer based on the document sections provided. Please ask your questions!' }] },
       ...history
     ],
     generationConfig: { maxOutputTokens: 1000, temperature: 0.3 }
@@ -42,13 +40,12 @@ async function askGemini(documentText, conversationHistory, userMessage) {
   return result.response.text();
 }
 
-async function askOpenAI(documentText, conversationHistory, userMessage) {
+async function askOpenAI(contextText, conversationHistory, userMessage) {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const ragContext = buildRAGContext(contextText);
 
-  const docContext = buildDocumentContext(documentText);
-  
   const messages = [
-    { role: 'system', content: SYSTEM_PROMPT + '\n\n' + docContext },
+    { role: 'system', content: SYSTEM_PROMPT + '\n\n' + ragContext },
     ...conversationHistory.map(msg => ({ role: msg.role, content: msg.content }))
   ];
 
@@ -62,14 +59,12 @@ async function askOpenAI(documentText, conversationHistory, userMessage) {
   return completion.choices[0].message.content;
 }
 
-async function askAI(documentText, conversationHistory, userMessage) {
+async function askAI(contextText, conversationHistory, userMessage) {
   const provider = process.env.AI_PROVIDER || 'gemini';
-  
   if (provider === 'openai') {
-    return await askOpenAI(documentText, conversationHistory, userMessage);
-  } else {
-    return await askGemini(documentText, conversationHistory, userMessage);
+    return await askOpenAI(contextText, conversationHistory, userMessage);
   }
+  return await askGemini(contextText, conversationHistory, userMessage);
 }
 
 module.exports = { askAI };

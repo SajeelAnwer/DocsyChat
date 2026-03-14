@@ -1,6 +1,13 @@
-# 📄 DocuChat v2 — AI Document Q&A Chatbot
+# 📄 DocuChat v3.0 — AI Document Q&A Chatbot (Not working - Embeddings Issue)
 
 A full-stack AI chatbot that answers questions **only** based on documents you upload. Built with React + Node.js/Express, powered by Google Gemini (free) or OpenAI.
+
+---
+
+# Issues with this build
+
+1. Embedding model name — text-embedding-004 is now deprecated. It needs a different API call format in the Node.js SDK.
+2. Document name not showing — the thread object uses file_name from DB but ChatWindow is reading fileName
 
 ---
 
@@ -19,6 +26,10 @@ A full-stack AI chatbot that answers questions **only** based on documents you u
 
 ## 🚀 Setup & Run
 
+### Step 0 - Preparing Database and some other things:
+
+1. Open `CHANGELOG.md` and do the necessary tasks. 
+
 ### Step 1 — Get a Free Gemini API Key
 
 1. Go to: https://aistudio.google.com/app/apikey
@@ -27,8 +38,6 @@ A full-stack AI chatbot that answers questions **only** based on documents you u
 4. Copy the key
 
 ### Step 2 — Configure the backend
-
-Open `Env File Contents (read me).txt` and do the mentioned steps.
 
 Open `backend/.env` and add your key:
 
@@ -104,6 +113,7 @@ docuchat/
 ```
 
 ---
+
 
 ## 🔄 Switching AI Providers
 

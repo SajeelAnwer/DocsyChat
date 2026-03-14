@@ -3,20 +3,38 @@
 # copy and paste this in the .env file and add the api keys.
 
 # =============================================
-# DocuChat Environment Configuration
+# DocsyChat v3 — Environment Configuration
 # =============================================
 
-# AI Provider: "gemini" or "openai"
+# ── AI Provider ──────────────────────────────
 AI_PROVIDER=gemini
-
-# Google Gemini API Key (free tier available at https://aistudio.google.com)
 GEMINI_API_KEY=your_gemini_api_key_here
-
-# OpenAI API Key (if using OpenAI instead)
 OPENAI_API_KEY=your_openai_api_key_here
 
-# Server Port
-PORT=5000
+# ── Supabase (Database) ───────────────────────
+# Project URL from: Supabase Dashboard → Settings → API
+SUPABASE_URL=your_Supabase_URL_here (https://xxxxxxxxx.supabase.co)
+# Anon/Public key from: Supabase Dashboard → Settings → API
+SUPABASE_ANON_KEY=Your_Anon_key_here (long string)
+# Password set when creating the Supabase project
+SUPABASE_DB_PASSWORD=Your_supabase_DB_pass_here
 
-# Max file size in MB
+# ── JWT Auth ──────────────────────────────────
+JWT_SECRET=docsychat_jwt_secret_change_in_production_v3
+JWT_EXPIRES_IN=7d
+
+# ── Email (Gmail SMTP) ────────────────────────
+# Gmail address that sends verification emails
+EMAIL_FROM=Email which will be used to send verification email
+# Gmail App Password (NOT your regular password)
+# Get it: Google Account → Security → 2-Step Verification ON → App Passwords → DocsyChat
+EMAIL_APP_PASSWORD=your_pass_here
+
+# ── Server ────────────────────────────────────
+PORT=5000
 MAX_FILE_SIZE_MB=10
+
+# ── RAG Settings ─────────────────────────────
+RAG_TOP_K=5
+RAG_CHUNK_SIZE=1500
+RAG_CHUNK_OVERLAP=200
