@@ -85,7 +85,11 @@ router.post('/:threadId', requireAuth, async (req, res) => {
       await supabase.from('threads').update({ title }).eq('id', threadId);
     }
 
-    res.json({ success: true, message: aiMsg, threadId });
+    res.json({
+      success: true,
+      message: { ...aiMsg, timestamp: aiMsg.created_at },
+      threadId
+    });
 
   } catch (err) {
     console.error('❌ Chat error full message:', err.message);
