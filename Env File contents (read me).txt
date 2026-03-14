@@ -13,11 +13,11 @@ OPENAI_API_KEY=your_openai_api_key_here
 
 # ── Supabase (Database) ───────────────────────
 # Project URL from: Supabase Dashboard → Settings → API
-SUPABASE_URL=your_Supabase_URL_here (https://xxxxxxxxx.supabase.co)
+SUPABASE_URL=Your_supabase_url_here(https://xxxxxxx.supabase.co)
 # Anon/Public key from: Supabase Dashboard → Settings → API
-SUPABASE_ANON_KEY=Your_Anon_key_here (long string)
+SUPABASE_ANON_KEY=your_Key_here (long string)
 # Password set when creating the Supabase project
-SUPABASE_DB_PASSWORD=Your_supabase_DB_pass_here
+SUPABASE_DB_PASSWORD=your_Db_pass_here (project pass not login pass)
 
 # ── JWT Auth ──────────────────────────────────
 JWT_SECRET=docsychat_jwt_secret_change_in_production_v3
@@ -25,7 +25,7 @@ JWT_EXPIRES_IN=7d
 
 # ── Email (Gmail SMTP) ────────────────────────
 # Gmail address that sends verification emails
-EMAIL_FROM=Email which will be used to send verification email
+EMAIL_FROM=email which sends the verification email
 # Gmail App Password (NOT your regular password)
 # Get it: Google Account → Security → 2-Step Verification ON → App Passwords → DocsyChat
 EMAIL_APP_PASSWORD=your_pass_here

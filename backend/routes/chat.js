@@ -41,8 +41,22 @@ router.post('/:threadId', requireAuth, async (req, res) => {
 
     // RAG: retrieve only relevant chunks instead of full document
     const topK = parseInt(process.env.RAG_TOP_K) || 5;
-    const chunks = await retrieveRelevantChunks(thread.document_id, message.trim(), topK);
-    const contextText = buildContext(chunks);
+
+    let contextText;
+    try {
+      const chunks = await retrieveRelevantChunks(thread.document_id, message.trim(), topK);
+      if (chunks.length === 0) {
+        // Chunks not ready yet (still embedding) — fall back gracefully
+        contextText = 'The document is still being processed. Please try again in a few seconds.';
+        console.warn(`⚠️ No chunks found for document ${thread.document_id} — may still be embedding`);
+      } else {
+        contextText = buildContext(chunks);
+        console.log(`✅ Retrieved ${chunks.length} chunks for query`);
+      }
+    } catch (ragErr) {
+      console.error('RAG retrieval error:', ragErr.message);
+      throw ragErr;
+    }
 
     // Call AI with only the relevant context
     const aiResponse = await askAI(
@@ -74,19 +88,20 @@ router.post('/:threadId', requireAuth, async (req, res) => {
     res.json({ success: true, message: aiMsg, threadId });
 
   } catch (err) {
-    console.error('Chat error:', err);
-    // Remove user message on failure
-    await supabase.from('messages').delete().eq('thread_id', threadId).eq('role', 'user').order('created_at', { ascending: false }).limit(1);
+    console.error('❌ Chat error full message:', err.message);
+    console.error('❌ Chat error stack:', err.stack);
 
-    let errorMsg = 'Failed to get AI response. ';
-    if (err.message?.includes('API_KEY') || err.message?.includes('api key')) {
-      errorMsg += 'Invalid API key.';
-    } else if (err.message?.includes('quota') || err.message?.includes('limit')) {
-      errorMsg += 'API quota exceeded. Please try again later.';
-    } else {
-      errorMsg += err.message;
-    }
-    res.status(500).json({ error: errorMsg });
+    // Remove the user message on failure
+    await supabase
+      .from('messages')
+      .delete()
+      .eq('thread_id', threadId)
+      .eq('role', 'user')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    // Return the ACTUAL error message — not a masked one
+    res.status(500).json({ error: `Failed to get AI response. ${err.message}` });
   }
 });
 

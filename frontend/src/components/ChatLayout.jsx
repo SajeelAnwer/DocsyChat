@@ -4,6 +4,15 @@ import UploadZone from './UploadZone';
 import ChatWindow from './ChatWindow';
 import { getThreads, deleteThread } from '../utils/api';
 
+// Normalize DB thread shape → consistent shape for components
+function normalizeThread(t) {
+  return {
+    ...t,
+    fileName: t.fileName || t.file_name || '',
+    file_name: t.file_name || t.fileName || '',
+  };
+}
+
 export default function ChatLayout({ user, onLogout }) {
   const [threads, setThreads] = useState([]);
   const [activeThreadId, setActiveThreadId] = useState(null);
@@ -13,19 +22,20 @@ export default function ChatLayout({ user, onLogout }) {
   const loadThreads = useCallback(async () => {
     try {
       const data = await getThreads();
-      setThreads(data.threads || []);
+      setThreads((data.threads || []).map(normalizeThread));
     } catch (e) { console.error('Failed to load threads:', e); }
   }, []);
 
   useEffect(() => { loadThreads(); }, [loadThreads]);
 
   const handleUploadComplete = (uploadResult) => {
-    const newThread = {
+    const newThread = normalizeThread({
       id: uploadResult.threadId,
       title: `Chat about ${uploadResult.fileName}`,
       file_name: uploadResult.fileName,
+      fileName: uploadResult.fileName,
       created_at: new Date().toISOString()
-    };
+    });
     setThreads(prev => [newThread, ...prev]);
     setActiveThread(newThread);
     setActiveThreadId(newThread.id);
@@ -34,7 +44,7 @@ export default function ChatLayout({ user, onLogout }) {
 
   const handleSelectThread = (threadId) => {
     const thread = threads.find(t => t.id === threadId);
-    setActiveThread(thread);
+    setActiveThread(thread ? normalizeThread(thread) : null);
     setActiveThreadId(threadId);
     setShowUpload(false);
   };

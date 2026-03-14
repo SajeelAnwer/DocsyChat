@@ -1,4 +1,3 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 const supabase = require('./supabase');
 
 // ── Chunk document into overlapping pieces ────────────────────────────────
@@ -8,7 +7,7 @@ function chunkDocument(text, chunkSize = 1500, overlap = 200) {
   while (start < text.length) {
     const end = Math.min(start + chunkSize, text.length);
     const chunk = text.slice(start, end).trim();
-    if (chunk.length > 50) { // skip tiny chunks
+    if (chunk.length > 50) {
       chunks.push({ content: chunk, index: chunks.length });
     }
     if (end === text.length) break;
@@ -17,12 +16,31 @@ function chunkDocument(text, chunkSize = 1500, overlap = 200) {
   return chunks;
 }
 
-// ── Generate embedding for a single text ─────────────────────────────────
+// ── Generate embedding via direct fetch ───────────────────────────────────
+// Model: gemini-embedding-001 with output_dimensionality: 1536
+// 1536 dims = high quality, under Supabase's 2000-dim ivfflat limit
 async function getEmbedding(text) {
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: 'text-embedding-004' });
-  const result = await model.embedContent(text);
-  return result.embedding.values;
+  const apiKey = process.env.GEMINI_API_KEY;
+  const model = 'gemini-embedding-001';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent?key=${apiKey}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: `models/${model}`,
+      content: { parts: [{ text }] },
+      output_dimensionality: 1536
+    })
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Embedding API error ${response.status}: ${errText}`);
+  }
+
+  const data = await response.json();
+  return data.embedding.values;
 }
 
 // ── Embed and store all chunks for a document ────────────────────────────
@@ -42,17 +60,15 @@ async function embedAndStoreDocument(documentId, text) {
       content: chunk.content,
       embedding
     });
-    // small delay to avoid rate limits
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 200));
   }
 
-  // Batch insert into Supabase
   const { error } = await supabase
     .from('document_chunks')
     .insert(rows);
 
   if (error) throw new Error(`Failed to store chunks: ${error.message}`);
-  console.log(`✅ Stored ${rows.length} chunks`);
+  console.log(`✅ Stored ${rows.length} chunks for document ${documentId}`);
   return rows.length;
 }
 
@@ -66,7 +82,7 @@ async function retrieveRelevantChunks(documentId, query, topK = 5) {
     p_match_count: topK
   });
 
-  if (error) throw new Error(`Failed to retrieve chunks: ${error.message}`);
+  if (error) throw new Error(`match_chunks RPC error: ${error.message}`);
   return data || [];
 }
 

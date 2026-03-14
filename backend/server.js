@@ -11,6 +11,7 @@ const uploadRoutes = require('./routes/upload');
 const threadRoutes = require('./routes/threads');
 
 const app = express();
+app.set('trust proxy', 1); // Fix express-rate-limit X-Forwarded-For warning
 const PORT = process.env.PORT || 5000;
 
 // Ensure uploads directory exists

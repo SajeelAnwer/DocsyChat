@@ -109,8 +109,6 @@ The following credentials are stored in `backend/.env`:
 3. You should see all 7 tables created + the `match_chunks` function
 
 ### Step 2 — Configure .env
-
-Open `Env File Contents (read me).txt` and do the tasks.
 Open `backend/.env` and fill in your `GEMINI_API_KEY`
 
 ### Step 3 — Install & Run
@@ -131,3 +129,41 @@ npm start
 2. Click **Sign up** → enter your name, email, password
 3. Check your email for the 6-digit code from `docsychat@gmail.com`
 4. Enter the code → you're in!
+
+---
+
+## v3.1 — Bug Fixes (Post-Launch)
+
+### Bug 1 — Document name blank in chat header
+**Problem:** The DB returns `file_name` (snake_case) but `ChatWindow` expected `fileName` (camelCase), so the filename showed as empty.
+**Fix:** Added `normalizeThread()` in `ChatLayout.jsx` that maps both `file_name` and `fileName` so all components always receive the correct value regardless of source.
+**File changed:** `frontend/src/components/ChatLayout.jsx`
+
+### Bug 2 — Embedding model deprecated (404 error)
+**Problem:** `text-embedding-004` was deprecated by Google as of early 2026 and is no longer available on any API version. The error `models/text-embedding-004 is not found` confirmed this.
+**Fix:** Switched to `gemini-embedding-001` — the current stable Gemini embedding model. Also switched from using the Node.js SDK (which hardcodes `v1beta`) to a direct `fetch()` call for full control over endpoint and model name.
+**Important dimension change:** `text-embedding-004` used **768 dimensions**. `gemini-embedding-001` uses **3072 dimensions**. The Supabase `document_chunks` table and `match_chunks` function were updated accordingly.
+**Files changed:**
+- `backend/utils/rag.js` — new model + direct fetch
+- `SUPABASE_SETUP.sql` — `vector(768)` → `vector(3072)`
+- `SUPABASE_MIGRATION_v3.1.sql` — **new file** — run this if you already set up the DB with the old SQL
+
+### Bug 3 — Rate limiter X-Forwarded-For warning
+**Problem:** `express-rate-limit` logged a `ValidationError` about `X-Forwarded-For` header because `trust proxy` was not set.
+**Fix:** Added `app.set('trust proxy', 1)` in `server.js`.
+**File changed:** `backend/server.js`
+
+### Action required for existing installs
+If you already ran `SUPABASE_SETUP.sql`, you **must** run `SUPABASE_MIGRATION_v3.1.sql` in the Supabase SQL Editor. This:
+- Drops the old 768-dim embedding column and recreates it as 3072-dim
+- Drops and recreates the `match_chunks` function
+- Clears all old chunks/documents/threads (they must be re-uploaded since embeddings are incompatible)
+
+### v3.1 Revision — Dimension fix (1536 instead of 3072)
+Supabase's hosted pgvector has a hard 2000-dimension limit on both `ivfflat` AND `hnsw` indexes regardless of the index type. Switched to `output_dimensionality: 1536` via the MRL feature of `gemini-embedding-001`. This gives near-full quality (1536 of 3072 dims retains the most important information by design), stays within Supabase's limit, and uses `ivfflat` which is well-supported.
+
+**Final embedding config:**
+- Model: `gemini-embedding-001`
+- Output dims: `1536` (via `output_dimensionality` parameter)
+- Index: `ivfflat` with `lists = 100`
+- DB column: `vector(1536)`

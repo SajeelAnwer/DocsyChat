@@ -8,13 +8,13 @@ create extension if not exists vector;
 
 -- 2. Users table
 create table if not exists users (
-  id          uuid primary key default gen_random_uuid(),
-  email       text unique not null,
+  id            uuid primary key default gen_random_uuid(),
+  email         text unique not null,
   password_hash text not null,
-  first_name  text not null,
-  last_name   text not null,
-  is_verified boolean default false,
-  created_at  timestamptz default now()
+  first_name    text not null,
+  last_name     text not null,
+  is_verified   boolean default false,
+  created_at    timestamptz default now()
 );
 
 -- 3. Verification codes table
@@ -37,14 +37,14 @@ create table if not exists documents (
   created_at  timestamptz default now()
 );
 
--- 5. Document chunks table (stores embeddings for RAG)
--- 768 dimensions = Gemini text-embedding-004 output size
+-- 5. Document chunks table
+-- gemini-embedding-001 outputs 3072 dimensions
 create table if not exists document_chunks (
   id          uuid primary key default gen_random_uuid(),
   document_id uuid not null references documents(id) on delete cascade,
   chunk_index int not null,
   content     text not null,
-  embedding   vector(768),
+  embedding   vector(1536),
   created_at  timestamptz default now()
 );
 
@@ -68,18 +68,20 @@ create table if not exists messages (
 );
 
 -- 8. Indexes for performance
-create index if not exists idx_users_email on users(email);
-create index if not exists idx_threads_user on threads(user_id);
-create index if not exists idx_messages_thread on messages(thread_id);
-create index if not exists idx_chunks_document on document_chunks(document_id);
+create index if not exists idx_users_email       on users(email);
+create index if not exists idx_threads_user      on threads(user_id);
+create index if not exists idx_messages_thread   on messages(thread_id);
+create index if not exists idx_chunks_document   on document_chunks(document_id);
+
+-- Vector index for similarity search (1536 dims, within Supabase ivfflat limit)
 create index if not exists idx_chunks_embedding on document_chunks
   using ivfflat (embedding vector_cosine_ops) with (lists = 100);
 
--- 9. Vector similarity search function (used by RAG)
+-- 9. Vector similarity search function
 create or replace function match_chunks(
-  p_document_id uuid,
-  p_query_embedding vector(768),
-  p_match_count int default 5
+  p_document_id     uuid,
+  p_query_embedding vector(1536),
+  p_match_count     int default 5
 )
 returns table (
   id          uuid,
@@ -100,22 +102,21 @@ as $$
   limit p_match_count;
 $$;
 
--- 10. Row Level Security (optional but recommended)
-alter table users enable row level security;
-alter table documents enable row level security;
-alter table threads enable row level security;
-alter table messages enable row level security;
-alter table document_chunks enable row level security;
+-- 10. Row Level Security
+alter table users             enable row level security;
+alter table documents         enable row level security;
+alter table threads           enable row level security;
+alter table messages          enable row level security;
+alter table document_chunks   enable row level security;
 alter table verification_codes enable row level security;
 
--- Allow service role full access (backend uses anon key with manual auth)
-create policy "Allow all for anon" on users for all using (true) with check (true);
-create policy "Allow all for anon" on documents for all using (true) with check (true);
-create policy "Allow all for anon" on threads for all using (true) with check (true);
-create policy "Allow all for anon" on messages for all using (true) with check (true);
-create policy "Allow all for anon" on document_chunks for all using (true) with check (true);
+create policy "Allow all for anon" on users              for all using (true) with check (true);
+create policy "Allow all for anon" on documents          for all using (true) with check (true);
+create policy "Allow all for anon" on threads            for all using (true) with check (true);
+create policy "Allow all for anon" on messages           for all using (true) with check (true);
+create policy "Allow all for anon" on document_chunks    for all using (true) with check (true);
 create policy "Allow all for anon" on verification_codes for all using (true) with check (true);
 
 -- ============================================================
--- Done! All tables and the match_chunks function are ready.
+-- Done! All tables use gemini-embedding-001 (3072 dimensions).
 -- ============================================================

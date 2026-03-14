@@ -1,15 +1,12 @@
-# 📄 DocuChat v3.0 — AI Document Q&A Chatbot (Not working - Embeddings Issue)
+# 📄 DocuChat v3.1 — AI Document Q&A Chatbot (Not working)
 
 A full-stack AI chatbot that answers questions **only** based on documents you upload. Built with React + Node.js/Express, powered by Google Gemini (free) or OpenAI.
 
 ---
 
-# Issues with this build
+# Issues with this Build
 
-1. Embedding model name — text-embedding-004 is now deprecated. It needs a different API call format in the Node.js SDK.
-2. Document name not showing — the thread object uses file_name from DB but ChatWindow is reading fileName
-
----
+1. Invalid Api Key
 
 ## 🛠 Tech Stack
 
@@ -29,6 +26,7 @@ A full-stack AI chatbot that answers questions **only** based on documents you u
 ### Step 0 - Preparing Database and some other things:
 
 1. Open `CHANGELOG.md` and do the necessary tasks. 
+2. Also the `Env File Contents.txt` File.
 
 ### Step 1 — Get a Free Gemini API Key
 
@@ -114,6 +112,38 @@ docuchat/
 
 ---
 
+## 🎨 What Changed in v2 (UI Redesign)
+
+### Theme & Colors
+- Switched from dark amber theme to a **warm cream light theme** (`#f5f0e8` base)
+- Deep ink dark sidebar (`#1a1814`) for contrast
+- Accent color changed to **purple `#7950B0`** used consistently across buttons, avatars, active states, and focus rings
+
+### Typography
+- **Fraunces** — optical-size serif for headings, logo, and display text (editorial feel)
+- **Instrument Sans** — clean geometric sans-serif for all body text and UI
+
+### Layout
+- Chat messages now **constrained to 720px max-width** and centered — no horizontal stretching on wide screens
+- Sidebar slimmed to 260px with cleaner spacing
+
+### Sidebar
+- **User name moved to bottom-left** of sidebar (like ChatGPT / Claude)
+- Top of sidebar is clean: logo + "New Document Chat" button only
+- Bottom user section separated by a subtle divider line
+
+### Upload Zone
+- Compact horizontal layout: **📎 icon sits to the left** of the text
+- Hint text simplified to **"Max 10 MB document"**
+- PDF / DOCX / TXT badges sit below, separated by a thin divider
+
+### Other Polish
+- Subtle **paper grain texture** overlay on the background
+- Smooth `fadeUp` entrance animations on messages and cards
+- Bouncing typing indicator dots instead of flat pulsing
+- Soft shadow hierarchy — elements have depth without being heavy
+
+---
 
 ## 🔄 Switching AI Providers
 
