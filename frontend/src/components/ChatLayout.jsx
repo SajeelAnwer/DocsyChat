@@ -4,7 +4,6 @@ import UploadZone from './UploadZone';
 import ChatWindow from './ChatWindow';
 import { getThreads, deleteThread } from '../utils/api';
 
-// Normalize DB thread shape → consistent shape for components
 function normalizeThread(t) {
   return {
     ...t,
@@ -55,16 +54,28 @@ export default function ChatLayout({ user, onLogout }) {
     setShowUpload(true);
   };
 
-  const handleDeleteThread = async (threadId) => {
-    try {
-      await deleteThread(threadId);
-      setThreads(prev => prev.filter(t => t.id !== threadId));
-      if (activeThreadId === threadId) {
-        setActiveThread(null);
-        setActiveThreadId(null);
-        setShowUpload(false);
+  const handleDeleteThread = (threadId) => {
+    // Optimistic update — remove from UI immediately, don't wait for server
+    const wasActive = activeThreadId === threadId;
+    const previousThreads = threads;
+
+    setThreads(prev => prev.filter(t => t.id !== threadId));
+    if (wasActive) {
+      setActiveThread(null);
+      setActiveThreadId(null);
+      setShowUpload(false);
+    }
+
+    // Fire delete in background — restore if it fails
+    deleteThread(threadId).catch(err => {
+      console.error('Failed to delete thread:', err);
+      setThreads(previousThreads);
+      if (wasActive) {
+        const thread = previousThreads.find(t => t.id === threadId);
+        setActiveThread(thread || null);
+        setActiveThreadId(threadId);
       }
-    } catch (e) { console.error('Failed to delete thread:', e); }
+    });
   };
 
   const showingUpload = showUpload || (!activeThread && threads.length === 0);

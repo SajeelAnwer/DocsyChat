@@ -1,4 +1,4 @@
-# 📄 DocsyChat v4.1 — AI Document Q&A Chatbot
+# 📄 DocsyChat v4.1.1 — AI Document Q&A Chatbot
 
 A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file and ask questions about it — DocsyChat answers from the document's content using Retrieval-Augmented Generation (RAG). Summarize it, ask specific questions, or dig into details — all grounded in what's actually in the file.
 

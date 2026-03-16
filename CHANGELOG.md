@@ -2,45 +2,46 @@
 
 ---
 
-## v4.1 — RAG Pipeline Overhaul
+## v4.1.1 — Performance Optimizations
 
-**Previous version (v4.0)** improved retrieval accuracy for case sensitivity and summary queries but still had significant issues with small documents — the model kept defaulting to the most prominent topic in the document regardless of what was asked, and responses were noticeably slower.
+**Previous version (v4.1)** overhauled the RAG pipeline with adaptive retrieval strategies — small documents now skip vector search entirely and send all chunks directly, which fixed the topic-confusion issues and improved answer accuracy.
 
----
-
-### Problem 1 — Small documents still getting wrong answers
-
-With `topK=8` and a typical short document having around 17 chunks, every single query was retrieving 47–73% of the entire document. Vector similarity barely mattered at that ratio — nearly the same chunks came back every time. Topics with more text (like SocioLums, which appeared in 4 of 17 chunks) dominated every response even when asking about something else entirely.
-
-On top of that, sentence-aware chunking sometimes produced fragments that started mid-sentence with no topic signal. Those orphaned chunks scored low similarity and got skipped, while the wrong topic's chunks scored higher just because they had cleaner, keyword-rich text.
-
-**Fix:** Documents with 25 chunks or fewer now skip vector search entirely and send all chunks to the model on every message. The full document fits comfortably in the model's context window, there are no retrieval misses, and the model can see everything and answer accurately about any part of it.
+This version focuses entirely on speed. No features added, no RAG changes — just removing unnecessary work that was slowing down every interaction.
 
 ---
 
-### Problem 2 — Responses were slower
+### Issue In Simple Words: solved in v4.1.1
 
-The v4.0 retrieval flow made 4 separate network calls per message: a COUNT query to Supabase, two embedding API calls (original + lowercase for query expansion), and the vector search RPC — before even calling the AI. For small documents this overhead was entirely wasted since the results were nearly identical every time anyway.
+The App was a bit slow, the loading time of pages was high and the action button took longer (deleting a thread took like 5 to 6 seconds in disapearing from the frontend)
 
-**Fix:** For small documents the flow is now just two calls — fetch all chunks from Supabase, then call the AI. No embedding call, no vector search. This saves roughly 600–900ms per message on short documents.
+### Problem 1 — Every API request hit the database for auth
 
----
+The auth middleware was making a Supabase DB call on every single authenticated request to look up the user by ID. This added ~150–200ms to every chat message, every thread load, every delete, and every page load. The DB call wasn't actually necessary — the JWT is cryptographically signed, so verifying it locally is all that's needed to trust it.
 
-### Problem 3 — Off-topic and capability questions not handled well
-
-Questions like "which model are you using?" or "can you make me a DOCX file?" were being answered with document content instead of a direct response. The system prompt had no explicit instruction for these cases.
-
-**Fix:** System prompt updated to explicitly handle capability questions (cannot create files or exports, but can write structured content as plain text), model identity questions (deflects without revealing the underlying model), and language switching (responds in whatever language the user writes in, including mid-conversation).
+**Fix (`backend/middleware/auth.js`):** Removed the Supabase lookup from the middleware entirely. `jwt.verify()` now handles auth on its own. To support this, the JWT payload was updated to carry `email`, `firstName`, and `lastName` so downstream routes have user info without needing a DB call. ~150–200ms saved on every authenticated request.
 
 ---
 
-### Summary of changes
+### Problem 2 — App took a noticeable moment to load even when already logged in
 
-| File | What changed |
-|---|---|
-| `backend/utils/rag.js` | New `retrieveChunks()` function with automatic small/large doc branching; small docs (≤ 25 chunks) send all content directly, large docs use vector search at 15% topK; removed separate COUNT query |
-| `backend/routes/chat.js` | Simplified to use new unified `retrieveChunks()` |
-| `backend/utils/ai.js` | System prompt updated for capability questions, model identity, and language switching |
-| `backend/.env` | `RAG_CHUNK_SIZE` 1500 → 1000, `RAG_CHUNK_OVERLAP` 200 → 100, added `RAG_MIN_SIMILARITY=0.35` |
+On every page load, the app waited for a `/api/auth/me` network round trip to complete before rendering anything. The user saw a spinner while this resolved even though their session was perfectly valid.
 
-> **Note:** Because chunk size changed, delete existing threads and re-upload your documents. Old chunks in Supabase were made with the previous settings and will not benefit from these fixes.
+**Fix (`frontend/src/App.js`):** User data is now cached in `localStorage` alongside the JWT token. On load, the app reads from cache instantly and renders immediately with no network call. A background request to `/api/auth/me` still runs quietly — if the server rejects the token, the cache is cleared and the user is sent to login. Token expiry is also checked locally by decoding the JWT payload so expired sessions are caught without a round trip.
+
+---
+
+### Problem 3 — Deleting a thread felt slow (5–6 seconds)
+
+The delete flow was fully sequential and blocking: auth middleware DB call → ownership check → delete messages → delete thread → count remaining threads → maybe delete chunks → maybe delete document — all before sending any response. The UI waited for all of this before removing the thread from the sidebar.
+
+**Fix — two parts:**
+
+`backend/routes/threads.js`: Messages and thread are now deleted in parallel with `Promise.all`. The response is sent immediately after that. The document and chunk cleanup happens in the background after the response is already sent — the user never waits for it.
+
+`frontend/src/components/ChatLayout.jsx`: Delete is now optimistic. The thread disappears from the sidebar the moment the button is clicked. The API call fires in the background. If it fails, the thread is restored automatically.
+
+---
+
+### Also fixed — stale version strings
+
+`server.js`, `backend/package.json`, `frontend/package.json`, and `backend/.env` were all still referencing v3 in their version fields and log messages. Updated to v4.1.1.

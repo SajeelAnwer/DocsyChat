@@ -118,5 +118,5 @@ create policy "Allow all for anon" on document_chunks    for all using (true) wi
 create policy "Allow all for anon" on verification_codes for all using (true) with check (true);
 
 -- ============================================================
--- Done! All tables use gemini-embedding-001 (3072 dimensions).
+-- Done! All tables use gemini-embedding-001 (1536 dimensions).
 -- ============================================================
