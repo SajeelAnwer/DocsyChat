@@ -1,4 +1,4 @@
-# 📄 DocsyChat v4.0 — AI Document Q&A Chatbot
+# 📄 DocsyChat v4.1 — AI Document Q&A Chatbot
 
 A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file and ask questions about it — DocsyChat answers from the document's content using Retrieval-Augmented Generation (RAG). Summarize it, ask specific questions, or dig into details — all grounded in what's actually in the file.
 
@@ -7,8 +7,8 @@ A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file an
 ## ✨ Features
 
 - **Document Q&A** — upload a document and get answers grounded in its content
-- **Smart RAG pipeline** — document is chunked, embedded, and stored in a vector database; relevant sections are retrieved per question (~85% fewer tokens vs. sending the full document every time)
-- **Summary detection** — asking for a summary or overview automatically retrieves the full document instead of running vector search, giving accurate complete summaries
+- **Adaptive RAG pipeline** — automatically selects the best retrieval strategy based on document size; small documents skip vector search entirely for faster and more accurate responses
+- **Summary detection** — asking for a summary or overview sends the full document to the model instead of running vector search
 - **Case-robust retrieval** — query expansion ensures results are consistent regardless of how you capitalize your question
 - **Email authentication** — signup with email and password, verified via a 6-digit code sent to your inbox
 - **Persistent storage** — all users, documents, threads, and messages stored in Supabase PostgreSQL
@@ -59,7 +59,7 @@ A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file an
 ## 📁 Project Structure
 
 ```
-docsychat_v4/
+docsychat_v4_1/
 ├── backend/
 │   ├── middleware/
 │   │   └── auth.js               # JWT auth middleware — protects all non-auth routes
@@ -72,7 +72,7 @@ docsychat_v4/
 │   │   ├── ai.js                 # Gemini / OpenAI chat abstraction
 │   │   ├── email.js              # Nodemailer — sends branded verification emails
 │   │   ├── extractor.js          # PDF / DOCX / TXT text extraction + cleanup
-│   │   ├── rag.js                # Chunking, embedding, query expansion, retrieval
+│   │   ├── rag.js                # Chunking, embedding, adaptive retrieval
 │   │   └── supabase.js           # Supabase client initialisation
 │   ├── .env                      # Environment variables (see setup section)
 │   ├── package.json
@@ -154,9 +154,10 @@ PORT=5000
 MAX_FILE_SIZE_MB=10
 
 # RAG tuning
-RAG_TOP_K=8
-RAG_CHUNK_SIZE=1500
-RAG_CHUNK_OVERLAP=200
+RAG_TOP_K=10
+RAG_CHUNK_SIZE=1000
+RAG_CHUNK_OVERLAP=100
+RAG_MIN_SIMILARITY=0.35
 ```
 
 **For Gemini API Key:**
@@ -208,16 +209,20 @@ Open [http://localhost:3000](http://localhost:3000).
 
 **On upload:**
 1. Text is extracted from the file
-2. The text is split into overlapping ~1,500-character chunks
+2. The text is split into sentence-aware chunks (~1,000 characters each with 100-character overlap)
 3. Each chunk is embedded using `gemini-embedding-001` (1536 dimensions) and stored in Supabase via pgvector
 
-**On each message:**
-- If the question is a summary or overview request, all chunks are retrieved in order so the model has the full document
-- Otherwise, the query is embedded (using query expansion for case robustness) and the top 8 most similar chunks are retrieved via cosine similarity
-- The retrieved chunks are sent to the AI alongside your question
-- The AI answers from those chunks
+**On each message — three strategies are used automatically:**
 
-Result: roughly 85% fewer tokens per query compared to sending the full document every time, with accurate summaries and consistent retrieval regardless of capitalization.
+| Situation | Strategy |
+|---|---|
+| Document has ≤ 25 chunks (short document) | All chunks sent directly — no vector search |
+| Summary or overview question on any document | All chunks sent directly — no vector search |
+| Long document + specific question | Vector search — top chunks by cosine similarity |
+
+For short documents all chunks are sent on every message. This is faster (skips the embedding API call entirely), more accurate (no retrieval misses), and the total content is small enough to fit easily in the model's context window.
+
+For long documents, vector search retrieves the most relevant 15% of chunks (minimum 4, maximum 10) and applies a similarity threshold to filter out low-relevance results.
 
 ---
 

@@ -1,5 +1,10 @@
 const supabase = require('./supabase');
 
+// ── Document size thresholds ──────────────────────────────────────────────
+// Small docs skip vector search entirely — all chunks sent directly.
+// This is faster and eliminates retrieval misses on short documents.
+const SMALL_DOC_THRESHOLD = 25; // chunks — docs with <= 25 chunks use full retrieval
+
 // ── Queries that should use the full document instead of vector search ────
 const SUMMARY_PATTERNS = [
   /\bsummar(y|ize|ise)\b/i,
@@ -11,25 +16,53 @@ const SUMMARY_PATTERNS = [
   /\bkey (points?|ideas?|topics?|takeaways?)\b/i,
   /\bbriefly describe\b/i,
   /\bgive me an? (outline|summary|overview|brief)\b/i,
+  /\ball (projects?|topics?|sections?|parts?)\b/i,
+  /\beverything (in|about|from) (this|the) (document|file)\b/i,
+  /\bfull (document|file|content|picture)\b/i,
 ];
 
 function isSummaryQuery(query) {
   return SUMMARY_PATTERNS.some(p => p.test(query));
 }
 
-// ── Chunk document into overlapping pieces ────────────────────────────────
-function chunkDocument(text, chunkSize = 1500, overlap = 200) {
+// ── Sentence-aware chunking ───────────────────────────────────────────────
+function chunkDocument(text, chunkSize = 1000, overlap = 100) {
+  const sentenceRegex = /(?<=[.!?])\s+(?=[A-Z\u0600-\u06FF])|(?<=\n)/g;
+  const sentences = text.split(sentenceRegex).filter(s => s.trim().length > 0);
+
   const chunks = [];
-  let start = 0;
-  while (start < text.length) {
-    const end = Math.min(start + chunkSize, text.length);
-    const chunk = text.slice(start, end).trim();
-    if (chunk.length > 50) {
-      chunks.push({ content: chunk, index: chunks.length });
+  let current = '';
+  let currentIndex = 0;
+
+  for (const sentence of sentences) {
+    const candidate = current ? current + ' ' + sentence : sentence;
+
+    if (candidate.length <= chunkSize) {
+      current = candidate;
+    } else {
+      if (current.trim().length > 50) {
+        chunks.push({ content: current.trim(), index: currentIndex++ });
+      }
+      if (sentence.length > chunkSize) {
+        let pos = 0;
+        while (pos < sentence.length) {
+          const piece = sentence.slice(pos, pos + chunkSize).trim();
+          if (piece.length > 50) chunks.push({ content: piece, index: currentIndex++ });
+          pos += chunkSize - overlap;
+        }
+        current = '';
+      } else {
+        const words = current.split(' ');
+        const overlapWords = words.slice(-Math.floor(overlap / 6)).join(' ');
+        current = overlapWords ? overlapWords + ' ' + sentence : sentence;
+      }
     }
-    if (end === text.length) break;
-    start += chunkSize - overlap;
   }
+
+  if (current.trim().length > 50) {
+    chunks.push({ content: current.trim(), index: currentIndex });
+  }
+
   return chunks;
 }
 
@@ -58,24 +91,14 @@ async function getEmbedding(text) {
   return data.embedding.values;
 }
 
-// ── Average two vectors (used for query expansion) ────────────────────────
 function averageVectors(v1, v2) {
   return v1.map((val, i) => (val + v2[i]) / 2);
 }
 
-// ── Get a robust query embedding using query expansion ────────────────────
-// Embeds both the original query and a lowercase version, then averages.
-// This prevents case-sensitive misses (e.g. "sociolums" vs "SocioLums").
 async function getQueryEmbedding(query) {
   const lower = query.toLowerCase().trim();
   const original = query.trim();
-
-  if (lower === original) {
-    // Already lowercase — single embedding is enough
-    return await getEmbedding(original);
-  }
-
-  // Embed both and average for a case-robust vector
+  if (lower === original) return await getEmbedding(original);
   const [embOriginal, embLower] = await Promise.all([
     getEmbedding(original),
     getEmbedding(lower)
@@ -85,8 +108,8 @@ async function getQueryEmbedding(query) {
 
 // ── Embed and store all chunks for a document ────────────────────────────
 async function embedAndStoreDocument(documentId, text) {
-  const chunkSize = parseInt(process.env.RAG_CHUNK_SIZE) || 1500;
-  const overlap = parseInt(process.env.RAG_CHUNK_OVERLAP) || 200;
+  const chunkSize = parseInt(process.env.RAG_CHUNK_SIZE) || 1000;
+  const overlap = parseInt(process.env.RAG_CHUNK_OVERLAP) || 100;
   const chunks = chunkDocument(text, chunkSize, overlap);
 
   console.log(`📦 Embedding ${chunks.length} chunks for document ${documentId}...`);
@@ -103,31 +126,13 @@ async function embedAndStoreDocument(documentId, text) {
     await new Promise(r => setTimeout(r, 200));
   }
 
-  const { error } = await supabase
-    .from('document_chunks')
-    .insert(rows);
-
+  const { error } = await supabase.from('document_chunks').insert(rows);
   if (error) throw new Error(`Failed to store chunks: ${error.message}`);
   console.log(`✅ Stored ${rows.length} chunks for document ${documentId}`);
   return rows.length;
 }
 
-// ── Retrieve most relevant chunks for a query ────────────────────────────
-async function retrieveRelevantChunks(documentId, query, topK = 8) {
-  // Use expanded, case-robust query embedding
-  const queryEmbedding = await getQueryEmbedding(query);
-
-  const { data, error } = await supabase.rpc('match_chunks', {
-    p_document_id: documentId,
-    p_query_embedding: queryEmbedding,
-    p_match_count: topK
-  });
-
-  if (error) throw new Error(`match_chunks RPC error: ${error.message}`);
-  return data || [];
-}
-
-// ── Retrieve ALL chunks for a document (used for summary queries) ────────
+// ── Retrieve ALL chunks ordered by position ───────────────────────────────
 async function retrieveAllChunks(documentId) {
   const { data, error } = await supabase
     .from('document_chunks')
@@ -139,16 +144,56 @@ async function retrieveAllChunks(documentId) {
   return data || [];
 }
 
-// ── Build context string from retrieved chunks ───────────────────────────
+// ── Main retrieval function ───────────────────────────────────────────────
+// Strategy:
+//   Small doc (≤ 25 chunks)  → always send all chunks (faster, no misses)
+//   Summary query            → always send all chunks
+//   Large doc, normal query  → vector search with adaptive topK
+async function retrieveChunks(documentId, query) {
+  // Always fetch all chunks first (single query, no COUNT needed)
+  const allChunks = await retrieveAllChunks(documentId);
+  const totalChunks = allChunks.length;
+
+  if (totalChunks === 0) return { chunks: [], strategy: 'empty' };
+
+  // Small document OR summary query → send everything
+  if (totalChunks <= SMALL_DOC_THRESHOLD || isSummaryQuery(query)) {
+    const strategy = totalChunks <= SMALL_DOC_THRESHOLD ? 'small_doc_full' : 'summary_full';
+    console.log(`📋 Strategy: ${strategy} (${totalChunks} chunks) — sending all`);
+    return { chunks: allChunks, strategy };
+  }
+
+  // Large document → vector search with adaptive topK
+  const topK = Math.max(4, Math.min(Math.ceil(totalChunks * 0.15), 10));
+  console.log(`🔍 Strategy: vector_search — topK=${topK} of ${totalChunks} chunks`);
+
+  const queryEmbedding = await getQueryEmbedding(query);
+  const { data, error } = await supabase.rpc('match_chunks', {
+    p_document_id: documentId,
+    p_query_embedding: queryEmbedding,
+    p_match_count: topK
+  });
+
+  if (error) throw new Error(`match_chunks RPC error: ${error.message}`);
+
+  const MIN_SIMILARITY = parseFloat(process.env.RAG_MIN_SIMILARITY) || 0.35;
+  const filtered = (data || []).filter(c => c.similarity >= MIN_SIMILARITY);
+  const result = filtered.length >= 2 ? filtered : (data || []).slice(0, 3);
+
+  console.log(`✅ Vector search: ${result.length} chunks returned`);
+  return { chunks: result, strategy: 'vector_search' };
+}
+
+// ── Build context string from chunks ─────────────────────────────────────
 function buildContext(chunks) {
   return chunks
-    .map((c, i) => `[Section ${i + 1}]\n${c.content}`)
+    .map((c, i) => `[Section ${i + 1} of ${chunks.length}]\n${c.content}`)
     .join('\n\n---\n\n');
 }
 
 module.exports = {
   embedAndStoreDocument,
-  retrieveRelevantChunks,
+  retrieveChunks,
   retrieveAllChunks,
   buildContext,
   chunkDocument,
