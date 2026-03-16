@@ -1,19 +1,18 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const OpenAI = require('openai');
 
-const SYSTEM_PROMPT = `You are DocsyChat, an AI assistant that ONLY answers questions based on the document sections provided to you.
+const SYSTEM_PROMPT = `You are DocsyChat, a helpful AI assistant. Your job is to answer questions based on the document content provided to you in each message.
 
-STRICT RULES:
-1. You MUST only use information from the provided document sections to answer questions.
-2. If the question can be answered from the sections, provide a clear, helpful answer.
-3. If the question is NOT answerable from the provided sections, respond with:
-   "The document doesn't mention anything about [topic]. I can only answer questions about what's in the document."
-4. Never use your general knowledge — only the document sections given.
-5. If asked who you are, say you are DocsyChat, a document-focused AI assistant.
-6. Be conversational and helpful, but always ground answers in the document sections.`;
+Guidelines:
+- Answer questions using the document sections given. Be helpful, clear, and thorough.
+- If the user asks for a summary or overview, summarize the content from the sections provided.
+- If something is clearly not covered anywhere in the provided sections, say so briefly and naturally — for example: "I don't see anything about [topic] in the document."
+- Do not repeat the rule about only using the document in every response. Just answer naturally.
+- You may use your language ability to rephrase and present the information clearly, but always base your answers on the provided document content.
+- If asked who you are, say you are DocsyChat, an AI assistant that helps users understand their documents.`;
 
 function buildRAGContext(contextText) {
-  return `Here are the most relevant sections from the document for this question:\n\n${contextText}\n\nAnswer based strictly on these sections only.`;
+  return `The following are sections from the document relevant to the user's question:\n\n${contextText}\n\n---\nAnswer the user's question based on the above document content.`;
 }
 
 async function askGemini(contextText, conversationHistory, userMessage) {
@@ -22,6 +21,7 @@ async function askGemini(contextText, conversationHistory, userMessage) {
 
   const ragContext = buildRAGContext(contextText);
 
+  // Build history excluding the very last message (the current one)
   const history = conversationHistory.slice(0, -1).map(msg => ({
     role: msg.role === 'assistant' ? 'model' : 'user',
     parts: [{ text: msg.content }]
@@ -29,14 +29,15 @@ async function askGemini(contextText, conversationHistory, userMessage) {
 
   const chat = model.startChat({
     history: [
-      { role: 'user', parts: [{ text: SYSTEM_PROMPT + '\n\n' + ragContext }] },
-      { role: 'model', parts: [{ text: 'Understood. I will only answer based on the document sections provided. Please ask your questions!' }] },
+      { role: 'user', parts: [{ text: SYSTEM_PROMPT }] },
+      { role: 'model', parts: [{ text: 'Understood! I\'m ready to help answer questions about your document.' }] },
       ...history
     ],
-    generationConfig: { maxOutputTokens: 1000, temperature: 0.3 }
+    generationConfig: { maxOutputTokens: 1500, temperature: 0.4 }
   });
 
-  const result = await chat.sendMessage(userMessage);
+  // Send RAG context together with the user message so context is fresh per query
+  const result = await chat.sendMessage(`${ragContext}\n\nUser question: ${userMessage}`);
   return result.response.text();
 }
 
@@ -45,15 +46,16 @@ async function askOpenAI(contextText, conversationHistory, userMessage) {
   const ragContext = buildRAGContext(contextText);
 
   const messages = [
-    { role: 'system', content: SYSTEM_PROMPT + '\n\n' + ragContext },
-    ...conversationHistory.map(msg => ({ role: msg.role, content: msg.content }))
+    { role: 'system', content: SYSTEM_PROMPT },
+    ...conversationHistory.slice(0, -1).map(msg => ({ role: msg.role, content: msg.content })),
+    { role: 'user', content: `${ragContext}\n\nUser question: ${userMessage}` }
   ];
 
   const completion = await openai.chat.completions.create({
     model: 'gpt-3.5-turbo',
     messages,
-    max_tokens: 1000,
-    temperature: 0.3
+    max_tokens: 1500,
+    temperature: 0.4
   });
 
   return completion.choices[0].message.content;

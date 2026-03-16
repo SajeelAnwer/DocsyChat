@@ -1,13 +1,15 @@
-# 📄 DocuChat v3.2 — AI Document Q&A Chatbot
+# 📄 DocsyChat v4.0 — AI Document Q&A Chatbot
 
-A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file and ask questions about it — DocsyChat answers strictly from the document's content using Retrieval-Augmented Generation (RAG). No hallucinations, no general knowledge bleed.
+A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file and ask questions about it — DocsyChat answers from the document's content using Retrieval-Augmented Generation (RAG). Summarize it, ask specific questions, or dig into details — all grounded in what's actually in the file.
 
 ---
 
-## Features
+## ✨ Features
 
-- **Document Q&A** — upload a document and get answers grounded exclusively in its content
-- **RAG pipeline** — document is chunked, embedded, and stored in a vector database; only the most relevant sections are retrieved per question (~85% fewer tokens vs. sending the full document on every message)
+- **Document Q&A** — upload a document and get answers grounded in its content
+- **Smart RAG pipeline** — document is chunked, embedded, and stored in a vector database; relevant sections are retrieved per question (~85% fewer tokens vs. sending the full document every time)
+- **Summary detection** — asking for a summary or overview automatically retrieves the full document instead of running vector search, giving accurate complete summaries
+- **Case-robust retrieval** — query expansion ensures results are consistent regardless of how you capitalize your question
 - **Email authentication** — signup with email and password, verified via a 6-digit code sent to your inbox
 - **Persistent storage** — all users, documents, threads, and messages stored in Supabase PostgreSQL
 - **Conversation history** — chat threads persist across sessions with full message history
@@ -57,7 +59,7 @@ A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file an
 ## 📁 Project Structure
 
 ```
-docsychat_v3/
+docsychat_v4/
 ├── backend/
 │   ├── middleware/
 │   │   └── auth.js               # JWT auth middleware — protects all non-auth routes
@@ -70,7 +72,7 @@ docsychat_v3/
 │   │   ├── ai.js                 # Gemini / OpenAI chat abstraction
 │   │   ├── email.js              # Nodemailer — sends branded verification emails
 │   │   ├── extractor.js          # PDF / DOCX / TXT text extraction + cleanup
-│   │   ├── rag.js                # Chunking, embedding, vector retrieval
+│   │   ├── rag.js                # Chunking, embedding, query expansion, retrieval
 │   │   └── supabase.js           # Supabase client initialisation
 │   ├── .env                      # Environment variables (see setup section)
 │   ├── package.json
@@ -114,14 +116,13 @@ docsychat_v3/
 ### Step 1 — Set up the Supabase database
 
 1. Open your Supabase project (create a new project if needed) → **SQL Editor**
-2. Enable pgvector (for RAG): Run the SQL query: create extension if not exists vector;
+2. Enable pgvector (required for RAG) by running: `create extension if not exists vector;`
 3. Copy the entire contents of `SUPABASE_SETUP.sql` and paste it in
 4. Click **Run**
 
 This creates all 6 tables, performance indexes, and the `match_chunks` vector similarity function. You only need to do this once.
 
-5. This is optional only if there is an embeddings error. Copy the entire contents of `SUPABASE_MIGRATION_v3.1.sql` and paste it in. Click **Run**
-
+> **Note:** If you encounter an embeddings-related error after setup, run `SUPABASE_MIGRATION_v3.1.sql` in the SQL Editor as well.
 
 ---
 
@@ -132,20 +133,20 @@ Open `backend/.env` and fill in your values:
 ```env
 # AI Provider — "gemini" (default) or "openai"
 AI_PROVIDER=gemini
-GEMINI_API_KEY=your_gemini_api_key_here (how to get it is given below)
+GEMINI_API_KEY=your_gemini_api_key_here
 OPENAI_API_KEY=your_openai_api_key_here   # only needed if using OpenAI
 
 # Supabase — from Dashboard → Settings → API
 SUPABASE_URL=https://xxxxxxxxxxx.supabase.co
-SUPABASE_ANON_KEY=your_supabase_anon_public_key (Long string)
-SUPABASE_DB_PASSWORD=your_supabase_db_password (not the login password)
+SUPABASE_ANON_KEY=your_supabase_anon_public_key
+SUPABASE_DB_PASSWORD=your_supabase_db_password
 
 # JWT — use any long random string, change in production
 JWT_SECRET=some_long_random_secret_here
 JWT_EXPIRES_IN=7d
 
 # Email — Gmail SMTP
-EMAIL_FROM=your_gmail@gmail.com (the one which sends the verification email)
+EMAIL_FROM=your_gmail@gmail.com
 EMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx   # 16-char Gmail App Password
 
 # Server
@@ -153,7 +154,7 @@ PORT=5000
 MAX_FILE_SIZE_MB=10
 
 # RAG tuning
-RAG_TOP_K=5
+RAG_TOP_K=8
 RAG_CHUNK_SIZE=1500
 RAG_CHUNK_OVERLAP=200
 ```
@@ -187,8 +188,10 @@ npm start
 Open [http://localhost:3000](http://localhost:3000).
 
 ---
+
 ## 💡 How it Works
-## First Use
+
+### First Use
 
 1. Click **Sign up** on the login screen
 2. Enter your first name, last name, email address, and a password (minimum 8 characters)
@@ -209,16 +212,16 @@ Open [http://localhost:3000](http://localhost:3000).
 3. Each chunk is embedded using `gemini-embedding-001` (1536 dimensions) and stored in Supabase via pgvector
 
 **On each message:**
-1. Your question is embedded using the same model
-2. The top 5 most similar chunks are retrieved from the database using cosine similarity
-3. Only those 5 chunks (~7,500 characters total) are sent to the AI alongside your question
-4. The AI answers strictly from those chunks — no outside knowledge used
+- If the question is a summary or overview request, all chunks are retrieved in order so the model has the full document
+- Otherwise, the query is embedded (using query expansion for case robustness) and the top 8 most similar chunks are retrieved via cosine similarity
+- The retrieved chunks are sent to the AI alongside your question
+- The AI answers from those chunks
 
-Result: roughly 85% fewer tokens per query compared to sending the full document every time.
+Result: roughly 85% fewer tokens per query compared to sending the full document every time, with accurate summaries and consistent retrieval regardless of capitalization.
 
 ---
 
-## Supported File Types
+## 📂 Supported File Types
 
 | Format | Extension | Notes |
 |---|---|---|
@@ -230,7 +233,7 @@ Maximum file size: **10 MB**
 
 ---
 
-## API Reference
+## 🔌 API Reference
 
 ### Auth — `/api/auth`
 | Method | Route | Auth required | Description |
@@ -268,7 +271,7 @@ Set `AI_PROVIDER=openai` in `.env` and provide your `OPENAI_API_KEY`. The chat m
 
 ---
 
-## Credentials Reference
+## 🔑 Credentials Reference
 
 | Variable | Where to get it |
 |---|---|

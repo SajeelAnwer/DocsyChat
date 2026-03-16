@@ -1,5 +1,22 @@
 const supabase = require('./supabase');
 
+// ── Queries that should use the full document instead of vector search ────
+const SUMMARY_PATTERNS = [
+  /\bsummar(y|ize|ise)\b/i,
+  /\boverview\b/i,
+  /\bwhat('?s| is) (this|the) (document|file|text|about)\b/i,
+  /\btell me about (this|the) (document|file)\b/i,
+  /\bwhat does (this|the) (document|file) (say|cover|contain|discuss|talk)\b/i,
+  /\bmain (points?|ideas?|topics?|themes?)\b/i,
+  /\bkey (points?|ideas?|topics?|takeaways?)\b/i,
+  /\bbriefly describe\b/i,
+  /\bgive me an? (outline|summary|overview|brief)\b/i,
+];
+
+function isSummaryQuery(query) {
+  return SUMMARY_PATTERNS.some(p => p.test(query));
+}
+
 // ── Chunk document into overlapping pieces ────────────────────────────────
 function chunkDocument(text, chunkSize = 1500, overlap = 200) {
   const chunks = [];
@@ -17,8 +34,6 @@ function chunkDocument(text, chunkSize = 1500, overlap = 200) {
 }
 
 // ── Generate embedding via direct fetch ───────────────────────────────────
-// Model: gemini-embedding-001 with output_dimensionality: 1536
-// 1536 dims = high quality, under Supabase's 2000-dim ivfflat limit
 async function getEmbedding(text) {
   const apiKey = process.env.GEMINI_API_KEY;
   const model = 'gemini-embedding-001';
@@ -41,6 +56,31 @@ async function getEmbedding(text) {
 
   const data = await response.json();
   return data.embedding.values;
+}
+
+// ── Average two vectors (used for query expansion) ────────────────────────
+function averageVectors(v1, v2) {
+  return v1.map((val, i) => (val + v2[i]) / 2);
+}
+
+// ── Get a robust query embedding using query expansion ────────────────────
+// Embeds both the original query and a lowercase version, then averages.
+// This prevents case-sensitive misses (e.g. "sociolums" vs "SocioLums").
+async function getQueryEmbedding(query) {
+  const lower = query.toLowerCase().trim();
+  const original = query.trim();
+
+  if (lower === original) {
+    // Already lowercase — single embedding is enough
+    return await getEmbedding(original);
+  }
+
+  // Embed both and average for a case-robust vector
+  const [embOriginal, embLower] = await Promise.all([
+    getEmbedding(original),
+    getEmbedding(lower)
+  ]);
+  return averageVectors(embOriginal, embLower);
 }
 
 // ── Embed and store all chunks for a document ────────────────────────────
@@ -73,8 +113,9 @@ async function embedAndStoreDocument(documentId, text) {
 }
 
 // ── Retrieve most relevant chunks for a query ────────────────────────────
-async function retrieveRelevantChunks(documentId, query, topK = 5) {
-  const queryEmbedding = await getEmbedding(query);
+async function retrieveRelevantChunks(documentId, query, topK = 8) {
+  // Use expanded, case-robust query embedding
+  const queryEmbedding = await getQueryEmbedding(query);
 
   const { data, error } = await supabase.rpc('match_chunks', {
     p_document_id: documentId,
@@ -86,6 +127,18 @@ async function retrieveRelevantChunks(documentId, query, topK = 5) {
   return data || [];
 }
 
+// ── Retrieve ALL chunks for a document (used for summary queries) ────────
+async function retrieveAllChunks(documentId) {
+  const { data, error } = await supabase
+    .from('document_chunks')
+    .select('id, content, chunk_index')
+    .eq('document_id', documentId)
+    .order('chunk_index', { ascending: true });
+
+  if (error) throw new Error(`Failed to retrieve all chunks: ${error.message}`);
+  return data || [];
+}
+
 // ── Build context string from retrieved chunks ───────────────────────────
 function buildContext(chunks) {
   return chunks
@@ -93,4 +146,11 @@ function buildContext(chunks) {
     .join('\n\n---\n\n');
 }
 
-module.exports = { embedAndStoreDocument, retrieveRelevantChunks, buildContext, chunkDocument };
+module.exports = {
+  embedAndStoreDocument,
+  retrieveRelevantChunks,
+  retrieveAllChunks,
+  buildContext,
+  chunkDocument,
+  isSummaryQuery
+};

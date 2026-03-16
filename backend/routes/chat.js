@@ -1,7 +1,7 @@
 const express = require('express');
 const supabase = require('../utils/supabase');
 const { askAI } = require('../utils/ai');
-const { retrieveRelevantChunks, buildContext } = require('../utils/rag');
+const { retrieveRelevantChunks, retrieveAllChunks, buildContext, isSummaryQuery } = require('../utils/rag');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -31,34 +31,46 @@ router.post('/:threadId', requireAuth, async (req, res) => {
       .select('id, role, content, created_at')
       .single();
 
-    // Get last 6 messages for conversation history
+    // Get last 8 messages for conversation history
     const { data: history } = await supabase
       .from('messages')
       .select('role, content')
       .eq('thread_id', threadId)
       .order('created_at', { ascending: true })
-      .limit(6);
+      .limit(8);
 
-    // RAG: retrieve only relevant chunks instead of full document
-    const topK = parseInt(process.env.RAG_TOP_K) || 5;
-
+    // ── RAG: choose retrieval strategy based on query type ───────────────
     let contextText;
+    const topK = parseInt(process.env.RAG_TOP_K) || 8;
+
     try {
-      const chunks = await retrieveRelevantChunks(thread.document_id, message.trim(), topK);
-      if (chunks.length === 0) {
-        // Chunks not ready yet (still embedding) — fall back gracefully
-        contextText = 'The document is still being processed. Please try again in a few seconds.';
-        console.warn(`⚠️ No chunks found for document ${thread.document_id} — may still be embedding`);
+      if (isSummaryQuery(message.trim())) {
+        // Summary/overview query — send all chunks so the model has the full picture
+        console.log(`📋 Summary query detected — retrieving all chunks`);
+        const allChunks = await retrieveAllChunks(thread.document_id);
+        if (allChunks.length === 0) {
+          contextText = 'The document is still being processed. Please try again in a few seconds.';
+        } else {
+          contextText = buildContext(allChunks);
+          console.log(`✅ Retrieved all ${allChunks.length} chunks for summary`);
+        }
       } else {
-        contextText = buildContext(chunks);
-        console.log(`✅ Retrieved ${chunks.length} chunks for query`);
+        // Normal query — vector search with query expansion
+        const chunks = await retrieveRelevantChunks(thread.document_id, message.trim(), topK);
+        if (chunks.length === 0) {
+          contextText = 'The document is still being processed. Please try again in a few seconds.';
+          console.warn(`⚠️ No chunks found for document ${thread.document_id}`);
+        } else {
+          contextText = buildContext(chunks);
+          console.log(`✅ Retrieved ${chunks.length} chunks for query`);
+        }
       }
     } catch (ragErr) {
       console.error('RAG retrieval error:', ragErr.message);
       throw ragErr;
     }
 
-    // Call AI with only the relevant context
+    // Call AI
     const aiResponse = await askAI(
       contextText,
       (history || []).map(m => ({ role: m.role, content: m.content })),
@@ -92,10 +104,8 @@ router.post('/:threadId', requireAuth, async (req, res) => {
     });
 
   } catch (err) {
-    console.error('❌ Chat error full message:', err.message);
-    console.error('❌ Chat error stack:', err.stack);
+    console.error('❌ Chat error:', err.message);
 
-    // Remove the user message on failure
     await supabase
       .from('messages')
       .delete()
@@ -104,7 +114,6 @@ router.post('/:threadId', requireAuth, async (req, res) => {
       .order('created_at', { ascending: false })
       .limit(1);
 
-    // Return the ACTUAL error message — not a masked one
     res.status(500).json({ error: `Failed to get AI response. ${err.message}` });
   }
 });
