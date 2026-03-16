@@ -32,6 +32,12 @@ export default function UploadZone({ user, onUploadComplete }) {
     processFile(e.dataTransfer.files[0]);
   };
 
+  const handleIconClick = (e) => {
+    // Stop click from bubbling to the parent upload-zone div
+    e.stopPropagation();
+    if (!uploading) inputRef.current?.click();
+  };
+
   return (
     <div className="upload-prompt">
       <div className="upload-prompt__inner">
@@ -48,9 +54,19 @@ export default function UploadZone({ user, onUploadComplete }) {
           onClick={() => !uploading && inputRef.current?.click()}
         >
           <input ref={inputRef} type="file" accept=".pdf,.docx,.txt"
-            onChange={e => processFile(e.target.files[0])} disabled={uploading} />
+            onChange={e => processFile(e.target.files[0])}
+            onClick={e => e.stopPropagation()}
+            disabled={uploading} />
           <div className="upload-zone__row">
-            <div className="upload-zone__icon-wrap">{dragging ? '📂' : '📎'}</div>
+            {/* Only the icon triggers the file picker on click */}
+            <div
+              className="upload-zone__icon-wrap"
+              onClick={handleIconClick}
+              title="Click to browse files"
+              style={{ cursor: uploading ? 'default' : 'pointer' }}
+            >
+              {dragging ? '📂' : '+'}
+            </div>
             <div className="upload-zone__text-group">
               <div className="upload-zone__text">
                 {dragging ? 'Release to upload' : 'Click to browse or drag & drop'}

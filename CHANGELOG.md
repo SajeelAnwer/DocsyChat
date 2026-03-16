@@ -2,46 +2,40 @@
 
 ---
 
-## v4.1.1 — Performance Optimizations
+## v4.1.2 — Upload Zone UI Fix
 
-**Previous version (v4.1)** overhauled the RAG pipeline with adaptive retrieval strategies — small documents now skip vector search entirely and send all chunks directly, which fixed the topic-confusion issues and improved answer accuracy.
+**Previous version (v4.1.1)** focused on performance — faster app load, faster delete, and eliminating unnecessary database calls on every request.
 
-This version focuses entirely on speed. No features added, no RAG changes — just removing unnecessary work that was slowing down every interaction.
-
----
-
-### Issue In Simple Words: solved in v4.1.1
-
-The App was a bit slow, the loading time of pages was high and the action button took longer (deleting a thread took like 5 to 6 seconds in disapearing from the frontend)
-
-### Problem 1 — Every API request hit the database for auth
-
-The auth middleware was making a Supabase DB call on every single authenticated request to look up the user by ID. This added ~150–200ms to every chat message, every thread load, every delete, and every page load. The DB call wasn't actually necessary — the JWT is cryptographically signed, so verifying it locally is all that's needed to trust it.
-
-**Fix (`backend/middleware/auth.js`):** Removed the Supabase lookup from the middleware entirely. `jwt.verify()` now handles auth on its own. To support this, the JWT payload was updated to carry `email`, `firstName`, and `lastName` so downstream routes have user info without needing a DB call. ~150–200ms saved on every authenticated request.
+This version fixes a bug on the upload screen that was causing the file picker to open twice when clicked, and makes a small visual change to the upload button icon.
 
 ---
 
-### Problem 2 — App took a noticeable moment to load even when already logged in
+### The problem and the fix (plain language)
 
-On every page load, the app waited for a `/api/auth/me` network round trip to complete before rendering anything. The user saw a spinner while this resolved even though their session was perfectly valid.
-
-**Fix (`frontend/src/App.js`):** User data is now cached in `localStorage` alongside the JWT token. On load, the app reads from cache instantly and renders immediately with no network call. A background request to `/api/auth/me` still runs quietly — if the server rejects the token, the cache is cleared and the user is sent to login. Token expiry is also checked locally by decoding the JWT payload so expired sessions are caught without a round trip.
+On the upload screen, clicking anywhere on the big upload box would open the file chooser window twice — so two file picker dialogs would stack on top of each other, which was confusing and required closing one before you could use the other. This happened because of how click events travel through nested elements on a webpage: clicking the inner icon button triggered the file picker, but that click also travelled upward to the outer box which triggered it a second time. The fix was to stop that click from travelling — the inner elements now handle their own clicks and prevent the outer box from reacting to them as well. The upload icon was also changed from a paperclip emoji to a cleaner plus sign (+).
 
 ---
 
-### Problem 3 — Deleting a thread felt slow (5–6 seconds)
+### Technical details
 
-The delete flow was fully sequential and blocking: auth middleware DB call → ownership check → delete messages → delete thread → count remaining threads → maybe delete chunks → maybe delete document — all before sending any response. The UI waited for all of this before removing the thread from the sidebar.
+**Double file picker on click (`frontend/src/components/UploadZone.jsx`)**
 
-**Fix — two parts:**
+The upload zone had an `onClick` on the outer box that called `inputRef.current?.click()` to open the file picker. The hidden `<input type="file">` is a child of that box. When `inputRef.current?.click()` was called, the browser fired a click event on the input which bubbled back up to the parent box and triggered `onClick` a second time — opening the file picker twice.
 
-`backend/routes/threads.js`: Messages and thread are now deleted in parallel with `Promise.all`. The response is sent immediately after that. The document and chunk cleanup happens in the background after the response is already sent — the user never waits for it.
+Fix: added `onClick={e => e.stopPropagation()}` on the hidden input so its click event does not bubble up to the parent. The icon also has `e.stopPropagation()` on its own click handler for the same reason.
 
-`frontend/src/components/ChatLayout.jsx`: Delete is now optimistic. The thread disappears from the sidebar the moment the button is clicked. The API call fires in the background. If it fails, the thread is restored automatically.
+**Icon change (`frontend/src/components/UploadZone.jsx`)**
+
+Changed the upload icon from `📎` (paperclip emoji) to `+` (plain text plus sign). The icon box is 44×44px with `font-size: 20px` and centered flex layout, so the plus sign renders cleanly without any additional styling.
+
+**Text update (`frontend/src/components/UploadZone.jsx`)**
+
+Updated hint text from "Drag & drop or click 📎 to browse" back to "Click to browse or drag & drop" to match the restored click behaviour on the full upload box.
 
 ---
 
-### Also fixed — stale version strings
+### File changed
 
-`server.js`, `backend/package.json`, `frontend/package.json`, and `backend/.env` were all still referencing v3 in their version fields and log messages. Updated to v4.1.1.
+| File | What changed |
+|---|---|
+| `frontend/src/components/UploadZone.jsx` | `stopPropagation` on hidden input and icon; icon changed to `+`; hint text updated |

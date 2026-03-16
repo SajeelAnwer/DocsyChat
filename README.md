@@ -1,4 +1,4 @@
-# 📄 DocsyChat v4.1.1 — AI Document Q&A Chatbot
+# 📄 DocsyChat v4.1.2 — AI Document Q&A Chatbot
 
 A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file and ask questions about it — DocsyChat answers from the document's content using Retrieval-Augmented Generation (RAG). Summarize it, ask specific questions, or dig into details — all grounded in what's actually in the file.
 
@@ -59,7 +59,7 @@ A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file an
 ## 📁 Project Structure
 
 ```
-docsychat_v4_1/
+DocsyChat_v4.1.2/
 ├── backend/
 │   ├── middleware/
 │   │   └── auth.js               # JWT auth middleware — protects all non-auth routes
@@ -199,7 +199,7 @@ Open [http://localhost:3000](http://localhost:3000).
 3. Check your inbox for a 6-digit verification code — it expires in 15 minutes
 4. Enter the code on the verification screen — you're logged in automatically
 5. Click **New Document Chat** in the sidebar
-6. Upload a PDF, DOCX, or TXT file (max 10 MB)
+6. Upload a PDF, DOCX, or TXT file (max 10 MB) by clicking anywhere on the upload box or dragging a file onto it
 7. The document is embedded in the background — this takes a few seconds depending on document length
 8. Ask any question about the document
 
