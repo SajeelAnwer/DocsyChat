@@ -614,3 +614,50 @@
   text-overflow: ellipsis;
   margin-top: 1px;
 }
+
+/* ── Thinking status indicator (replaces typing dots) ─────────────────── */
+.thinking-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  padding: 10px 16px;
+  border-radius: var(--radius-lg);
+  border-bottom-left-radius: 4px;
+  box-shadow: var(--shadow-sm);
+  transition: opacity 0.2s ease;
+}
+
+.thinking-status__dot {
+  width: 7px;
+  height: 7px;
+  background: var(--accent);
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: thinkingPulse 1.4s ease-in-out infinite;
+}
+
+.thinking-status__text {
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  font-style: italic;
+  white-space: nowrap;
+}
+
+/* ── "Searched document · Ns" label above AI response ─────────────────── */
+.thought-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.thought-label::before {
+  content: '✦';
+  font-size: 8px;
+  opacity: 0.6;
+}

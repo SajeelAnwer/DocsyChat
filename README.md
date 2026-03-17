@@ -1,20 +1,6 @@
-# 📄 DocsyChat v4.2 — AI Document Q&A Chatbot
+# 📄 DocsyChat v4.3.0 — AI Document Q&A Chatbot
 
 A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file and ask questions about it — DocsyChat answers from the document's content using Retrieval-Augmented Generation (RAG). Summarize it, ask specific questions, or dig into details — all grounded in what's actually in the file.
-
----
-
-## 🔄 What changed from v3.2 to v4.2
-
-v3.2 was the base — a working full-stack app with auth, Supabase database, and a RAG pipeline. Here's what each version added:
-
-| Version | What changed |
-|---|---|
-| **v4.0** | RAG improvements — fixed case-sensitive retrieval, added summary detection, rewrote system prompt to reduce wrong refusals |
-| **v4.1** | RAG optimisation — small documents now skip vector search entirely and send all content directly, faster and more accurate |
-| **v4.1.1** | Performance — eliminated a DB call on every request, instant app load from cache, thread delete is now instant (optimistic UI) |
-| **v4.1.2** | Bug fix — upload box was opening the file picker twice; fixed and changed the upload icon to a plus sign |
-| **v4.2** | UI improvements — input auto-focuses after responses, timestamps show date + time, sidebar shows document filename |
 
 ---
 
@@ -24,6 +10,7 @@ v3.2 was the base — a working full-stack app with auth, Supabase database, and
 - **Adaptive RAG pipeline** — automatically selects the best retrieval strategy based on document size; small documents skip vector search entirely for faster and more accurate responses
 - **Summary detection** — asking for a summary or overview sends the full document to the model instead of running vector search
 - **Case-robust retrieval** — query expansion ensures results are consistent regardless of how you capitalize your question
+- **Thinking indicator** — while DocsyChat is processing, a status message shows what it's doing (reading, searching, finding sections). After it responds, a small label shows how long it took
 - **Auto-focus input** — the message box becomes active automatically after every response so you can keep typing without clicking
 - **Smart timestamps** — messages show a context-aware date and time (time only for today, date + time for older messages)
 - **Email authentication** — signup with email and password, verified via a 6-digit code sent to your inbox
@@ -75,7 +62,7 @@ v3.2 was the base — a working full-stack app with auth, Supabase database, and
 ## 📁 Project Structure
 
 ```
-DocsyChat_v4.2/
+DocsyChat_v4.3.0/
 ├── backend/
 │   ├── middleware/
 │   │   └── auth.js               # JWT auth middleware — protects all non-auth routes
@@ -100,12 +87,12 @@ DocsyChat_v4.2/
 │       ├── components/
 │       │   ├── AuthScreen.jsx    # Login, Signup, and Email Verification screens
 │       │   ├── ChatLayout.jsx    # Main app shell — manages threads and view state
-│       │   ├── ChatWindow.jsx    # Message list, input bar, welcome message
+│       │   ├── ChatWindow.jsx    # Message list, input bar, thinking indicator
 │       │   ├── Sidebar.jsx       # Thread list, user info, logout button
 │       │   └── UploadZone.jsx    # Drag-and-drop or click-to-browse file upload
 │       ├── styles/
 │       │   ├── app.css           # All component styles
-│       │   └── globals.css       # CSS variables, resets, typography imports
+│       │   └── globals.css       # CSS variables, resets, typography, keyframes
 │       ├── utils/
 │       │   └── api.js            # Axios instance + every API call as named exports
 │       ├── App.js                # Root — token validation on load, auth/app routing
@@ -217,7 +204,7 @@ Open [http://localhost:3000](http://localhost:3000).
 5. Click **New Document Chat** in the sidebar
 6. Upload a PDF, DOCX, or TXT file (max 10 MB) by clicking anywhere on the upload box or dragging a file onto it
 7. The document is embedded in the background — this takes a few seconds depending on document length
-8. Ask any question about the document — the input box will refocus automatically after every response
+8. Ask any question about the document — while DocsyChat thinks, you'll see a status message showing what it's doing
 
 ---
 
@@ -235,10 +222,6 @@ Open [http://localhost:3000](http://localhost:3000).
 | Document has ≤ 25 chunks (short document) | All chunks sent directly — no vector search |
 | Summary or overview question on any document | All chunks sent directly — no vector search |
 | Long document + specific question | Vector search — top chunks by cosine similarity |
-
-For short documents all chunks are sent on every message. This is faster (skips the embedding API call entirely), more accurate (no retrieval misses), and the total content is small enough to fit easily in the model's context window.
-
-For long documents, vector search retrieves the most relevant 15% of chunks (minimum 4, maximum 10) and applies a similarity threshold to filter out low-relevance results.
 
 ---
 

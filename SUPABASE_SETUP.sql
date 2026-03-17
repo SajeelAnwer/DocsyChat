@@ -1,5 +1,5 @@
 -- ============================================================
--- DocsyChat v4.2 — Supabase Database Setup
+-- DocsyChat v4.3.0 — Supabase Database Setup
 -- Run this entire file in: Supabase Dashboard → SQL Editor
 -- ============================================================
 

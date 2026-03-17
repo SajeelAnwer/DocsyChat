@@ -2,51 +2,47 @@
 
 ---
 
-## v4.2 — UI & UX Improvements
+## v4.3.0 — Thinking Indicator
 
-### What changed in v4.2 (plain language)
-
-- After DocsyChat replies, the message box automatically becomes active so you can keep typing without having to click it first
-- Message timestamps now show a date alongside the time — today's messages still just show the time, but older ones show the date too
-- The sidebar now shows the document filename (e.g. `report.pdf`) as the thread title instead of an auto-generated sentence from your first question
+**Previous version (v4.2)** added auto-focus after responses, smart timestamps, and the document filename as the sidebar thread title.
 
 ---
 
-### What changed from v3.2 to v4.2
+### What changed in v4.3.0 (plain language)
 
-v3.2 was the base — a working full-stack app with auth, Supabase database, and a RAG pipeline.
-
-| Version | What changed |
-|---|---|
-| **v4.0** | RAG improvements — fixed case-sensitive retrieval misses, added summary detection, rewrote system prompt to reduce wrong refusals |
-| **v4.1** | RAG optimisation — small documents now skip vector search entirely, faster and more accurate |
-| **v4.1.1** | Performance — eliminated a DB call on every request, instant app load from cache, thread delete is now instant |
-| **v4.1.2** | Bug fix — upload box was opening the file picker twice; also changed the upload icon to a plus sign |
-| **v4.2** | UI improvements — input auto-focuses after responses, smart timestamps, sidebar shows document filename |
+- While DocsyChat is working on your question, instead of three bouncing dots you now see a short text message that describes what it is doing — "Reading your question…", "Searching the document…", "Finding relevant sections…" and so on. The message changes as time passes.
+- After DocsyChat replies, a small line appears just above the response saying something like "Searched document · 3s" so you know roughly how long it took.
+- These are purely visual changes. No extra API calls are made, nothing changes in how the AI works, and there is no added cost.
 
 ---
 
-### Technical details — v4.2 changes
+### Technical details
 
-**Change 1 — Auto-focus input after response (`frontend/src/components/ChatWindow.jsx`)**
+**Thinking indicator — `ThinkingIndicator` component (`frontend/src/components/ChatWindow.jsx`)**
 
-Added a `useEffect` that watches the `loading` state. When it flips from `true` to `false` — meaning the AI response just finished — it calls `textareaRef.current?.focus()` to programmatically focus the textarea. Also added a height reset on send so the input returns to single-line height after a message is submitted.
+Replaced the `TypingIndicator` component (three bouncing dots) with a new `ThinkingIndicator` component. It receives the timestamp of when the message was sent (`startTime`) and uses a `setInterval` running every 300ms to compare elapsed time against a `THINKING_PHASES` array:
 
-**Change 2 — Smart timestamps (`frontend/src/components/ChatWindow.jsx`)**
+```
+0ms    → "Reading your question…"
+1500ms → "Searching the document…"
+3500ms → "Finding relevant sections…"
+6000ms → "Putting the answer together…"
+9000ms → "Almost there…"
+```
 
-Replaced `formatTime` with `formatTimestamp`. Logic:
-- Today → `2:45 PM`
-- Yesterday → `Yesterday · 2:45 PM`
-- This year → `14 Mar · 2:45 PM`
-- Older → `14 Mar 2024 · 2:45 PM`
+When the phase changes, the text fades out (opacity 0 over 200ms), the new text is set, then it fades back in. This gives a smooth transition without any animation library. The pulsing accent-coloured dot next to the text uses a `thinkingPulse` CSS keyframe (scale + opacity).
 
-**Change 3 — Sidebar shows document filename (`frontend/src/components/Sidebar.jsx`)**
+**"Searched document · Ns" label — `ThoughtLabel` component (`frontend/src/components/ChatWindow.jsx`)**
 
-`thread-item__title` now renders `thread.file_name` instead of `thread.title`. The meta row shows only `timeAgo`. Extended `timeAgo` to show a formatted date (e.g. `9 Mar`) for threads older than 7 days instead of `8d ago`.
+When `handleSend` fires, it records `startTime = Date.now()`. When the response arrives, it calculates `durationMs = Date.now() - startTime` and stores it on the message object alongside the content. The `ThoughtLabel` component reads this value and renders a small muted label above the response bubble. Labels under 500ms are hidden (no flicker for very fast responses). The label reads "Searched document · 1s", "Searched document · 4s", or just "Searched document" for responses over 10 seconds.
 
-**Version cleanup**
+**CSS additions (`frontend/src/styles/app.css`)**
 
-`package.json` (root) was still named `"docuchat"` at version `"1.0.0"`. `SUPABASE_SETUP.sql`, `backend/.env`, and `server.js` still referenced v4.1.1. All updated to v4.2.
+Added `.thinking-status`, `.thinking-status__dot`, `.thinking-status__text`, and `.thought-label` styles. The thought label uses a `::before` pseudo-element with the `✦` character to match the DocsyChat avatar.
+
+**Keyframe addition (`frontend/src/styles/globals.css`)**
+
+Added `@keyframes thinkingPulse` — scales the dot between 1 and 0.75 while fading opacity between 1 and 0.35, giving a soft breathing pulse effect.
 
 ---
 
@@ -54,11 +50,12 @@ Replaced `formatTime` with `formatTimestamp`. Logic:
 
 | File | What changed |
 |---|---|
-| `frontend/src/components/ChatWindow.jsx` | Auto-focus on response; smart timestamp |
-| `frontend/src/components/Sidebar.jsx` | Filename as title; timeAgo subtitle; extended date for old threads |
-| `backend/server.js` | Version updated to v4.2 |
-| `backend/package.json` | Version updated to 4.2.0 |
-| `frontend/package.json` | Version updated to 4.2.0 |
+| `frontend/src/components/ChatWindow.jsx` | Replaced `TypingIndicator` with `ThinkingIndicator`; added `ThoughtLabel`; added `loadingStartTime` state; passes `durationMs` on message objects |
+| `frontend/src/styles/app.css` | Added `.thinking-status`, `.thinking-status__dot`, `.thinking-status__text`, `.thought-label` styles |
+| `frontend/src/styles/globals.css` | Added `@keyframes thinkingPulse` |
+| `backend/server.js` | Version updated to v4.3.0 |
+| `backend/package.json` | Version updated to 4.3.0 |
+| `frontend/package.json` | Version updated to 4.3.0 |
 | `backend/.env` | Header comment updated |
 | `SUPABASE_SETUP.sql` | Header comment updated |
-| `package.json` (root) | Name corrected to `docsychat`; version updated to 4.2.0 |
+| `package.json` (root) | Version updated to 4.3.0 |

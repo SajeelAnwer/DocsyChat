@@ -2,41 +2,78 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { sendMessage, getMessages } from '../utils/api';
 
+// ── Timestamp formatter ───────────────────────────────────────────────────
 function formatTimestamp(dateStr) {
   const date = new Date(dateStr);
   const now = new Date();
-
   const isToday = date.toDateString() === now.toDateString();
   const isYesterday = new Date(now - 86400000).toDateString() === date.toDateString();
-
   const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
   if (isToday) return time;
   if (isYesterday) return `Yesterday · ${time}`;
-
-  // Same year — show day and month only
   const sameYear = date.getFullYear() === now.getFullYear();
-  const dateStr2 = date.toLocaleDateString([], {
-    day: 'numeric',
-    month: 'short',
+  const d = date.toLocaleDateString([], {
+    day: 'numeric', month: 'short',
     year: sameYear ? undefined : 'numeric'
   });
-  return `${dateStr2} · ${time}`;
+  return `${d} · ${time}`;
 }
 
-function TypingIndicator() {
+// ── Thinking indicator — rotating status phrases with fade animation ──────
+// Phrases are purely cosmetic, driven by elapsed time client-side.
+// No extra API calls, no backend changes, zero cost.
+const THINKING_PHASES = [
+  { minMs: 0,    text: 'Reading your question…' },
+  { minMs: 1500, text: 'Searching the document…' },
+  { minMs: 3500, text: 'Finding relevant sections…' },
+  { minMs: 6000, text: 'Putting the answer together…' },
+  { minMs: 9000, text: 'Almost there…' },
+];
+
+function ThinkingIndicator({ startTime }) {
+  const [phaseIndex, setPhaseIndex] = useState(0);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      let next = 0;
+      for (let i = THINKING_PHASES.length - 1; i >= 0; i--) {
+        if (elapsed >= THINKING_PHASES[i].minMs) { next = i; break; }
+      }
+      if (next !== phaseIndex) {
+        // Fade out, switch text, fade back in
+        setVisible(false);
+        setTimeout(() => {
+          setPhaseIndex(next);
+          setVisible(true);
+        }, 200);
+      }
+    }, 300);
+    return () => clearInterval(interval);
+  }, [startTime, phaseIndex]);
+
   return (
     <div className="message assistant">
       <div className="message__avatar">✦</div>
       <div className="message__content">
-        <div className="typing-bubble">
-          <div className="typing-dot" />
-          <div className="typing-dot" />
-          <div className="typing-dot" />
+        <div className="thinking-status" style={{ opacity: visible ? 1 : 0 }}>
+          <span className="thinking-status__dot" />
+          <span className="thinking-status__text">{THINKING_PHASES[phaseIndex].text}</span>
         </div>
       </div>
     </div>
   );
+}
+
+// ── "Thought for N seconds" label shown under the AI response ─────────────
+function ThoughtLabel({ durationMs }) {
+  if (!durationMs || durationMs < 500) return null;
+  const secs = Math.round(durationMs / 1000);
+  const label = secs <= 1 ? 'Searched document · 1s'
+    : secs < 10 ? `Searched document · ${secs}s`
+    : 'Searched document';
+  return <div className="thought-label">{label}</div>;
 }
 
 function WelcomeMessage({ fileName, userName }) {
@@ -65,6 +102,7 @@ export default function ChatWindow({ thread, user, onNewChat }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingStartTime, setLoadingStartTime] = useState(null);
   const [error, setError] = useState('');
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
@@ -77,11 +115,8 @@ export default function ChatWindow({ thread, user, onNewChat }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  // Auto-focus the textarea whenever loading finishes (i.e. after a response arrives)
   useEffect(() => {
-    if (!loading) {
-      textareaRef.current?.focus();
-    }
+    if (!loading) textareaRef.current?.focus();
   }, [loading]);
 
   const loadMessages = async () => {
@@ -99,8 +134,9 @@ export default function ChatWindow({ thread, user, onNewChat }) {
     setInput('');
     setError('');
     setLoading(true);
+    const startTime = Date.now();
+    setLoadingStartTime(startTime);
 
-    // Reset textarea height
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
     const tempMsg = { id: 'temp', role: 'user', content: text, timestamp: new Date().toISOString() };
@@ -108,10 +144,12 @@ export default function ChatWindow({ thread, user, onNewChat }) {
 
     try {
       const data = await sendMessage(thread.id, text);
+      const durationMs = Date.now() - startTime;
+
       setMessages(prev => [
         ...prev.filter(m => m.id !== 'temp'),
         { id: Date.now() + '-u', role: 'user', content: text, timestamp: new Date().toISOString() },
-        data.message
+        { ...data.message, durationMs }
       ]);
     } catch (err) {
       setMessages(prev => prev.filter(m => m.id !== 'temp'));
@@ -149,9 +187,7 @@ export default function ChatWindow({ thread, user, onNewChat }) {
             <div className="chat-header__meta">Document Q&A</div>
           </div>
         </div>
-        <button className="chat-header__new" onClick={onNewChat}>
-          + New
-        </button>
+        <button className="chat-header__new" onClick={onNewChat}>+ New</button>
       </div>
 
       {/* Messages */}
@@ -165,6 +201,9 @@ export default function ChatWindow({ thread, user, onNewChat }) {
                 {msg.role === 'user' ? initials : '✦'}
               </div>
               <div className="message__content">
+                {msg.role === 'assistant' && msg.durationMs && (
+                  <ThoughtLabel durationMs={msg.durationMs} />
+                )}
                 <div className="message__bubble">
                   {msg.role === 'assistant' ? (
                     <ReactMarkdown>{msg.content}</ReactMarkdown>
@@ -177,7 +216,9 @@ export default function ChatWindow({ thread, user, onNewChat }) {
             </div>
           ))}
 
-          {loading && <TypingIndicator />}
+          {loading && loadingStartTime && (
+            <ThinkingIndicator startTime={loadingStartTime} />
+          )}
           <div ref={bottomRef} />
         </div>
       </div>
