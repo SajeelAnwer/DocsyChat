@@ -2,40 +2,63 @@
 
 ---
 
-## v4.1.2 — Upload Zone UI Fix
+## v4.2 — UI & UX Improvements
 
-**Previous version (v4.1.1)** focused on performance — faster app load, faster delete, and eliminating unnecessary database calls on every request.
+### What changed in v4.2 (plain language)
 
-This version fixes a bug on the upload screen that was causing the file picker to open twice when clicked, and makes a small visual change to the upload button icon.
-
----
-
-### The problem and the fix (plain language)
-
-On the upload screen, clicking anywhere on the big upload box would open the file chooser window twice — so two file picker dialogs would stack on top of each other, which was confusing and required closing one before you could use the other. This happened because of how click events travel through nested elements on a webpage: clicking the inner icon button triggered the file picker, but that click also travelled upward to the outer box which triggered it a second time. The fix was to stop that click from travelling — the inner elements now handle their own clicks and prevent the outer box from reacting to them as well. The upload icon was also changed from a paperclip emoji to a cleaner plus sign (+).
+- After DocsyChat replies, the message box automatically becomes active so you can keep typing without having to click it first
+- Message timestamps now show a date alongside the time — today's messages still just show the time, but older ones show the date too
+- The sidebar now shows the document filename (e.g. `report.pdf`) as the thread title instead of an auto-generated sentence from your first question
 
 ---
 
-### Technical details
+### What changed from v3.2 to v4.2
 
-**Double file picker on click (`frontend/src/components/UploadZone.jsx`)**
+v3.2 was the base — a working full-stack app with auth, Supabase database, and a RAG pipeline.
 
-The upload zone had an `onClick` on the outer box that called `inputRef.current?.click()` to open the file picker. The hidden `<input type="file">` is a child of that box. When `inputRef.current?.click()` was called, the browser fired a click event on the input which bubbled back up to the parent box and triggered `onClick` a second time — opening the file picker twice.
-
-Fix: added `onClick={e => e.stopPropagation()}` on the hidden input so its click event does not bubble up to the parent. The icon also has `e.stopPropagation()` on its own click handler for the same reason.
-
-**Icon change (`frontend/src/components/UploadZone.jsx`)**
-
-Changed the upload icon from `📎` (paperclip emoji) to `+` (plain text plus sign). The icon box is 44×44px with `font-size: 20px` and centered flex layout, so the plus sign renders cleanly without any additional styling.
-
-**Text update (`frontend/src/components/UploadZone.jsx`)**
-
-Updated hint text from "Drag & drop or click 📎 to browse" back to "Click to browse or drag & drop" to match the restored click behaviour on the full upload box.
+| Version | What changed |
+|---|---|
+| **v4.0** | RAG improvements — fixed case-sensitive retrieval misses, added summary detection, rewrote system prompt to reduce wrong refusals |
+| **v4.1** | RAG optimisation — small documents now skip vector search entirely, faster and more accurate |
+| **v4.1.1** | Performance — eliminated a DB call on every request, instant app load from cache, thread delete is now instant |
+| **v4.1.2** | Bug fix — upload box was opening the file picker twice; also changed the upload icon to a plus sign |
+| **v4.2** | UI improvements — input auto-focuses after responses, smart timestamps, sidebar shows document filename |
 
 ---
 
-### File changed
+### Technical details — v4.2 changes
+
+**Change 1 — Auto-focus input after response (`frontend/src/components/ChatWindow.jsx`)**
+
+Added a `useEffect` that watches the `loading` state. When it flips from `true` to `false` — meaning the AI response just finished — it calls `textareaRef.current?.focus()` to programmatically focus the textarea. Also added a height reset on send so the input returns to single-line height after a message is submitted.
+
+**Change 2 — Smart timestamps (`frontend/src/components/ChatWindow.jsx`)**
+
+Replaced `formatTime` with `formatTimestamp`. Logic:
+- Today → `2:45 PM`
+- Yesterday → `Yesterday · 2:45 PM`
+- This year → `14 Mar · 2:45 PM`
+- Older → `14 Mar 2024 · 2:45 PM`
+
+**Change 3 — Sidebar shows document filename (`frontend/src/components/Sidebar.jsx`)**
+
+`thread-item__title` now renders `thread.file_name` instead of `thread.title`. The meta row shows only `timeAgo`. Extended `timeAgo` to show a formatted date (e.g. `9 Mar`) for threads older than 7 days instead of `8d ago`.
+
+**Version cleanup**
+
+`package.json` (root) was still named `"docuchat"` at version `"1.0.0"`. `SUPABASE_SETUP.sql`, `backend/.env`, and `server.js` still referenced v4.1.1. All updated to v4.2.
+
+---
+
+### Files changed
 
 | File | What changed |
 |---|---|
-| `frontend/src/components/UploadZone.jsx` | `stopPropagation` on hidden input and icon; icon changed to `+`; hint text updated |
+| `frontend/src/components/ChatWindow.jsx` | Auto-focus on response; smart timestamp |
+| `frontend/src/components/Sidebar.jsx` | Filename as title; timeAgo subtitle; extended date for old threads |
+| `backend/server.js` | Version updated to v4.2 |
+| `backend/package.json` | Version updated to 4.2.0 |
+| `frontend/package.json` | Version updated to 4.2.0 |
+| `backend/.env` | Header comment updated |
+| `SUPABASE_SETUP.sql` | Header comment updated |
+| `package.json` (root) | Name corrected to `docsychat`; version updated to 4.2.0 |

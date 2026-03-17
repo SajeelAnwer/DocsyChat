@@ -2,8 +2,26 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { sendMessage, getMessages } from '../utils/api';
 
-function formatTime(dateStr) {
-  return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+function formatTimestamp(dateStr) {
+  const date = new Date(dateStr);
+  const now = new Date();
+
+  const isToday = date.toDateString() === now.toDateString();
+  const isYesterday = new Date(now - 86400000).toDateString() === date.toDateString();
+
+  const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  if (isToday) return time;
+  if (isYesterday) return `Yesterday · ${time}`;
+
+  // Same year — show day and month only
+  const sameYear = date.getFullYear() === now.getFullYear();
+  const dateStr2 = date.toLocaleDateString([], {
+    day: 'numeric',
+    month: 'short',
+    year: sameYear ? undefined : 'numeric'
+  });
+  return `${dateStr2} · ${time}`;
 }
 
 function TypingIndicator() {
@@ -59,6 +77,13 @@ export default function ChatWindow({ thread, user, onNewChat }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
+  // Auto-focus the textarea whenever loading finishes (i.e. after a response arrives)
+  useEffect(() => {
+    if (!loading) {
+      textareaRef.current?.focus();
+    }
+  }, [loading]);
+
   const loadMessages = async () => {
     try {
       const data = await getMessages(thread.id);
@@ -74,6 +99,9 @@ export default function ChatWindow({ thread, user, onNewChat }) {
     setInput('');
     setError('');
     setLoading(true);
+
+    // Reset textarea height
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
     const tempMsg = { id: 'temp', role: 'user', content: text, timestamp: new Date().toISOString() };
     setMessages(prev => [...prev, tempMsg]);
@@ -144,7 +172,7 @@ export default function ChatWindow({ thread, user, onNewChat }) {
                     <p>{msg.content}</p>
                   )}
                 </div>
-                <div className="message__time">{formatTime(msg.timestamp)}</div>
+                <div className="message__time">{formatTimestamp(msg.timestamp)}</div>
               </div>
             </div>
           ))}

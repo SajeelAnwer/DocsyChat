@@ -13,7 +13,9 @@ function timeAgo(dateStr) {
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(dateStr).toLocaleDateString([], { day: 'numeric', month: 'short' });
 }
 
 export default function Sidebar({ user, threads, activeThreadId, onSelectThread, onNewChat, onDeleteThread, onLogout }) {
@@ -48,11 +50,13 @@ export default function Sidebar({ user, threads, activeThreadId, onSelectThread,
               className={`thread-item ${thread.id === activeThreadId ? 'active' : ''}`}
               onClick={() => onSelectThread(thread.id)}
             >
-              <div className="thread-item__title">{thread.title}</div>
+              {/* Primary line: document filename */}
+              <div className="thread-item__title">
+                {thread.file_name || thread.fileName}
+              </div>
+              {/* Secondary line: time ago */}
               <div className="thread-item__meta">
-                <span className="thread-item__meta-file">{thread.file_name}</span>
-                <span>·</span>
-                <span style={{ flexShrink: 0 }}>{timeAgo(thread.created_at)}</span>
+                <span>{timeAgo(thread.created_at)}</span>
               </div>
               <button className="thread-item__delete"
                 onClick={e => { e.stopPropagation(); onDeleteThread(thread.id); }}

@@ -1,6 +1,20 @@
-# 📄 DocsyChat v4.1.2 — AI Document Q&A Chatbot
+# 📄 DocsyChat v4.2 — AI Document Q&A Chatbot
 
 A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file and ask questions about it — DocsyChat answers from the document's content using Retrieval-Augmented Generation (RAG). Summarize it, ask specific questions, or dig into details — all grounded in what's actually in the file.
+
+---
+
+## 🔄 What changed from v3.2 to v4.2
+
+v3.2 was the base — a working full-stack app with auth, Supabase database, and a RAG pipeline. Here's what each version added:
+
+| Version | What changed |
+|---|---|
+| **v4.0** | RAG improvements — fixed case-sensitive retrieval, added summary detection, rewrote system prompt to reduce wrong refusals |
+| **v4.1** | RAG optimisation — small documents now skip vector search entirely and send all content directly, faster and more accurate |
+| **v4.1.1** | Performance — eliminated a DB call on every request, instant app load from cache, thread delete is now instant (optimistic UI) |
+| **v4.1.2** | Bug fix — upload box was opening the file picker twice; fixed and changed the upload icon to a plus sign |
+| **v4.2** | UI improvements — input auto-focuses after responses, timestamps show date + time, sidebar shows document filename |
 
 ---
 
@@ -10,6 +24,8 @@ A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file an
 - **Adaptive RAG pipeline** — automatically selects the best retrieval strategy based on document size; small documents skip vector search entirely for faster and more accurate responses
 - **Summary detection** — asking for a summary or overview sends the full document to the model instead of running vector search
 - **Case-robust retrieval** — query expansion ensures results are consistent regardless of how you capitalize your question
+- **Auto-focus input** — the message box becomes active automatically after every response so you can keep typing without clicking
+- **Smart timestamps** — messages show a context-aware date and time (time only for today, date + time for older messages)
 - **Email authentication** — signup with email and password, verified via a 6-digit code sent to your inbox
 - **Persistent storage** — all users, documents, threads, and messages stored in Supabase PostgreSQL
 - **Conversation history** — chat threads persist across sessions with full message history
@@ -59,7 +75,7 @@ A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file an
 ## 📁 Project Structure
 
 ```
-DocsyChat_v4.1.2/
+DocsyChat_v4.2/
 ├── backend/
 │   ├── middleware/
 │   │   └── auth.js               # JWT auth middleware — protects all non-auth routes
@@ -201,7 +217,7 @@ Open [http://localhost:3000](http://localhost:3000).
 5. Click **New Document Chat** in the sidebar
 6. Upload a PDF, DOCX, or TXT file (max 10 MB) by clicking anywhere on the upload box or dragging a file onto it
 7. The document is embedded in the background — this takes a few seconds depending on document length
-8. Ask any question about the document
+8. Ask any question about the document — the input box will refocus automatically after every response
 
 ---
 
