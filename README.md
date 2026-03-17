@@ -1,4 +1,4 @@
-# 📄 DocsyChat v4.3.0 — AI Document Q&A Chatbot
+# 📄 DocsyChat v4.3.1 — AI Document Q&A Chatbot
 
 A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file and ask questions about it — DocsyChat answers from the document's content using Retrieval-Augmented Generation (RAG). Summarize it, ask specific questions, or dig into details — all grounded in what's actually in the file.
 
@@ -11,6 +11,7 @@ A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file an
 - **Summary detection** — asking for a summary or overview sends the full document to the model instead of running vector search
 - **Case-robust retrieval** — query expansion ensures results are consistent regardless of how you capitalize your question
 - **Thinking indicator** — while DocsyChat is processing, a status message shows what it's doing (reading, searching, finding sections). After it responds, a small label shows how long it took
+- **Copy button** — every message has a copy button next to the timestamp. Hover over it to see "Copy prompt" or "Copy response", click to copy to clipboard. Confirms with a checkmark
 - **Auto-focus input** — the message box becomes active automatically after every response so you can keep typing without clicking
 - **Smart timestamps** — messages show a context-aware date and time (time only for today, date + time for older messages)
 - **Email authentication** — signup with email and password, verified via a 6-digit code sent to your inbox
@@ -62,7 +63,7 @@ A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file an
 ## 📁 Project Structure
 
 ```
-DocsyChat_v4.3.0/
+DocsyChat_v4.3.1/
 ├── backend/
 │   ├── middleware/
 │   │   └── auth.js               # JWT auth middleware — protects all non-auth routes
@@ -205,6 +206,7 @@ Open [http://localhost:3000](http://localhost:3000).
 6. Upload a PDF, DOCX, or TXT file (max 10 MB) by clicking anywhere on the upload box or dragging a file onto it
 7. The document is embedded in the background — this takes a few seconds depending on document length
 8. Ask any question about the document — while DocsyChat thinks, you'll see a status message showing what it's doing
+9. Click the copy icon next to any message timestamp to copy the text to your clipboard
 
 ---
 

@@ -8,8 +8,8 @@ function formatTimestamp(dateStr) {
   const now = new Date();
   const isToday = date.toDateString() === now.toDateString();
   const isYesterday = new Date(now - 86400000).toDateString() === date.toDateString();
-  const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  if (isToday) return time;
+  const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+  if (isToday) return `Today · ${time}`;
   if (isYesterday) return `Yesterday · ${time}`;
   const sameYear = date.getFullYear() === now.getFullYear();
   const d = date.toLocaleDateString([], {
@@ -19,9 +19,59 @@ function formatTimestamp(dateStr) {
   return `${d} · ${time}`;
 }
 
-// ── Thinking indicator — rotating status phrases with fade animation ──────
-// Phrases are purely cosmetic, driven by elapsed time client-side.
-// No extra API calls, no backend changes, zero cost.
+// ── Copy button ───────────────────────────────────────────────────────────
+// Gemini-style icon: two clean overlapping squares, thin strokes.
+// Custom CSS tooltip so it appears instantly on hover (no browser title delay).
+function CopyButton({ text, tooltip }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      const el = document.createElement('textarea');
+      el.value = text;
+      el.style.position = 'fixed';
+      el.style.opacity = '0';
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  return (
+    <div className="copy-btn-wrap">
+      <button
+        className={`copy-btn ${copied ? 'copied' : ''}`}
+        onClick={handleCopy}
+        aria-label={copied ? 'Copied!' : tooltip}
+      >
+        {copied ? (
+          // Checkmark
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        ) : (
+          // Gemini-style copy icon: two clean overlapping squares
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="8" y="8" width="12" height="12" rx="2" />
+            <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
+          </svg>
+        )}
+      </button>
+      <span className="copy-btn-tooltip">{copied ? 'Copied!' : tooltip}</span>
+    </div>
+  );
+}
+
+// ── Thinking indicator ────────────────────────────────────────────────────
 const THINKING_PHASES = [
   { minMs: 0,    text: 'Reading your question…' },
   { minMs: 1500, text: 'Searching the document…' },
@@ -42,12 +92,8 @@ function ThinkingIndicator({ startTime }) {
         if (elapsed >= THINKING_PHASES[i].minMs) { next = i; break; }
       }
       if (next !== phaseIndex) {
-        // Fade out, switch text, fade back in
         setVisible(false);
-        setTimeout(() => {
-          setPhaseIndex(next);
-          setVisible(true);
-        }, 200);
+        setTimeout(() => { setPhaseIndex(next); setVisible(true); }, 200);
       }
     }, 300);
     return () => clearInterval(interval);
@@ -66,7 +112,7 @@ function ThinkingIndicator({ startTime }) {
   );
 }
 
-// ── "Thought for N seconds" label shown under the AI response ─────────────
+// ── Thought label ─────────────────────────────────────────────────────────
 function ThoughtLabel({ durationMs }) {
   if (!durationMs || durationMs < 500) return null;
   const secs = Math.round(durationMs / 1000);
@@ -107,17 +153,9 @@ export default function ChatWindow({ thread, user, onNewChat }) {
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
 
-  useEffect(() => {
-    if (thread?.id) loadMessages();
-  }, [thread?.id]);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loading]);
-
-  useEffect(() => {
-    if (!loading) textareaRef.current?.focus();
-  }, [loading]);
+  useEffect(() => { if (thread?.id) loadMessages(); }, [thread?.id]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, loading]);
+  useEffect(() => { if (!loading) textareaRef.current?.focus(); }, [loading]);
 
   const loadMessages = async () => {
     try {
@@ -136,7 +174,6 @@ export default function ChatWindow({ thread, user, onNewChat }) {
     setLoading(true);
     const startTime = Date.now();
     setLoadingStartTime(startTime);
-
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
     const tempMsg = { id: 'temp', role: 'user', content: text, timestamp: new Date().toISOString() };
@@ -145,7 +182,6 @@ export default function ChatWindow({ thread, user, onNewChat }) {
     try {
       const data = await sendMessage(thread.id, text);
       const durationMs = Date.now() - startTime;
-
       setMessages(prev => [
         ...prev.filter(m => m.id !== 'temp'),
         { id: Date.now() + '-u', role: 'user', content: text, timestamp: new Date().toISOString() },
@@ -160,10 +196,7 @@ export default function ChatWindow({ thread, user, onNewChat }) {
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
   const handleTextareaInput = (e) => {
@@ -211,7 +244,13 @@ export default function ChatWindow({ thread, user, onNewChat }) {
                     <p>{msg.content}</p>
                   )}
                 </div>
-                <div className="message__time">{formatTimestamp(msg.timestamp)}</div>
+                <div className="message__footer">
+                  <CopyButton
+                    text={msg.content}
+                    tooltip={msg.role === 'user' ? 'Copy prompt' : 'Copy response'}
+                  />
+                  <div className="message__time">{formatTimestamp(msg.timestamp)}</div>
+                </div>
               </div>
             </div>
           ))}

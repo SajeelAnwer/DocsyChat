@@ -466,8 +466,58 @@
 .message__bubble ul, .message__bubble ol { padding-left: 20px; margin-bottom: 8px; }
 .message__bubble li { margin-bottom: 3px; }
 
-.message__time { font-size: 11px; color: var(--text-muted); margin-top: 4px; padding: 0 4px; }
-.message.user .message__time { text-align: right; }
+.message__footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 0 2px;
+}
+.message.user .message__footer { flex-direction: row-reverse; }
+
+.message__time { font-size: 11px; color: var(--text-muted); }
+
+/* Copy button wrapper — holds button + custom tooltip */
+.copy-btn-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Custom tooltip — appears instantly on hover, no browser delay */
+.copy-btn-tooltip {
+  position: absolute;
+  bottom: calc(100% + 5px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--text-primary);
+  color: var(--bg-elevated);
+  font-size: 11px;
+  font-family: var(--font-body);
+  white-space: nowrap;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+  z-index: 10;
+}
+.copy-btn-wrap:hover .copy-btn-tooltip { opacity: 1; }
+
+/* Copy button */
+.copy-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px;
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  transition: color 0.12s, background 0.12s;
+  flex-shrink: 0;
+  padding: 0;
+}
+.copy-btn:hover { color: var(--text-secondary); background: var(--bg-hover); }
+.copy-btn.copied { color: #2e9e6b; }
 
 /* Typing indicator */
 .typing-bubble {
