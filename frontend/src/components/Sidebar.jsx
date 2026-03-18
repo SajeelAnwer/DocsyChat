@@ -6,6 +6,18 @@ const DocIcon = () => (
   </svg>
 );
 
+// Gemini-style bin icon — outline trash can with lid
+const BinIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+    <path d="M10 11v6" />
+    <path d="M14 11v6" />
+    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+  </svg>
+);
+
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -50,17 +62,24 @@ export default function Sidebar({ user, threads, activeThreadId, onSelectThread,
               className={`thread-item ${thread.id === activeThreadId ? 'active' : ''}`}
               onClick={() => onSelectThread(thread.id)}
             >
-              {/* Primary line: document filename */}
               <div className="thread-item__title">
                 {thread.file_name || thread.fileName}
               </div>
-              {/* Secondary line: time ago */}
               <div className="thread-item__meta">
                 <span>{timeAgo(thread.created_at)}</span>
               </div>
-              <button className="thread-item__delete"
-                onClick={e => { e.stopPropagation(); onDeleteThread(thread.id); }}
-                title="Delete">✕</button>
+
+              {/* Delete button — bin icon with instant custom tooltip */}
+              <div className="thread-item__delete-wrap">
+                <button
+                  className="thread-item__delete"
+                  onClick={e => { e.stopPropagation(); onDeleteThread(thread.id); }}
+                  aria-label="Delete chat"
+                >
+                  <BinIcon />
+                </button>
+                <span className="thread-item__delete-tooltip">Delete</span>
+              </div>
             </div>
           ))
         )}
