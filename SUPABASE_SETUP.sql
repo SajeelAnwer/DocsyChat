@@ -1,5 +1,5 @@
 -- ============================================================
--- DocsyChat v4.3.2 — Supabase Database Setup
+-- DocsyChat v4.4 — Supabase Database Setup
 -- Run this entire file in: Supabase Dashboard → SQL Editor
 -- ============================================================
 
@@ -50,12 +50,14 @@ create table if not exists document_chunks (
 
 -- 6. Threads table
 create table if not exists threads (
-  id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null references users(id) on delete cascade,
-  document_id uuid references documents(id) on delete set null,
-  title       text not null,
-  file_name   text not null,
-  created_at  timestamptz default now()
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references users(id) on delete cascade,
+  document_id  uuid references documents(id) on delete set null,
+  title        text not null,
+  file_name    text not null,
+  custom_title text,              -- user-defined rename, null means show file_name
+  is_starred   boolean default false,
+  created_at   timestamptz default now()
 );
 
 -- 7. Messages table
@@ -70,6 +72,7 @@ create table if not exists messages (
 -- 8. Indexes for performance
 create index if not exists idx_users_email       on users(email);
 create index if not exists idx_threads_user      on threads(user_id);
+create index if not exists idx_threads_starred   on threads(user_id, is_starred);
 create index if not exists idx_messages_thread   on messages(thread_id);
 create index if not exists idx_chunks_document   on document_chunks(document_id);
 

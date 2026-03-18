@@ -1,4 +1,4 @@
-# 📄 DocsyChat v4.3.2 — AI Document Q&A Chatbot
+# 📄 DocsyChat v4.4 — AI Document Q&A Chatbot
 
 A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file and ask questions about it — DocsyChat answers from the document's content using Retrieval-Augmented Generation (RAG). Summarize it, ask specific questions, or dig into details — all grounded in what's actually in the file.
 
@@ -12,6 +12,8 @@ A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file an
 - **Case-robust retrieval** — query expansion ensures results are consistent regardless of how you capitalize your question
 - **Thinking indicator** — while DocsyChat is processing, a status message shows what it's doing (reading, searching, finding sections). After it responds, a small label shows how long it took
 - **Copy button** — every message has a copy button next to the timestamp. Hover over it to see "Copy prompt" or "Copy response", click to copy to clipboard. Confirms with a checkmark
+- **Star chats** — star any thread to pin it to the top of the sidebar. Starred threads show a filled star; unstarred show an empty star
+- **Rename threads** — click the rename button on any thread to give it a custom name inline. Press Enter to save or Escape to cancel
 - **Auto-focus input** — the message box becomes active automatically after every response so you can keep typing without clicking
 - **Smart timestamps** — messages show a context-aware date and time (time only for today, date + time for older messages)
 - **Email authentication** — signup with email and password, verified via a 6-digit code sent to your inbox
@@ -63,14 +65,14 @@ A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file an
 ## 📁 Project Structure
 
 ```
-DocsyChat_v4.3.2/
+DocsyChat_v4.4.1/
 ├── backend/
 │   ├── middleware/
 │   │   └── auth.js               # JWT auth middleware — protects all non-auth routes
 │   ├── routes/
 │   │   ├── auth.js               # Signup, login, verify email, resend code, /me
 │   │   ├── chat.js               # Send message, get AI response, load history
-│   │   ├── threads.js            # List and delete threads
+│   │   ├── threads.js            # List, patch (rename/star), and delete threads
 │   │   └── upload.js             # File upload, text extraction, background embedding
 │   ├── utils/
 │   │   ├── ai.js                 # Gemini / OpenAI chat abstraction
@@ -100,6 +102,7 @@ DocsyChat_v4.3.2/
 │       └── index.js
 ├── SUPABASE_SETUP.sql            # Full DB setup — run once for a fresh install
 ├── SUPABASE_MIGRATION_v3.1.sql   # Migration script — run only if upgrading from v3.0
+├── SUPABASE_MIGRATION_v4.4.sql   # Migration script — run only if upgrading from v4.3.x
 ├── CHANGELOG.md
 └── README.md
 ```
@@ -127,6 +130,8 @@ DocsyChat_v4.3.2/
 This creates all 6 tables, performance indexes, and the `match_chunks` vector similarity function. You only need to do this once.
 
 > **Note:** If you encounter an embeddings-related error after setup, run `SUPABASE_MIGRATION_v3.1.sql` in the SQL Editor as well.
+
+> **Upgrading from v4.3.x?** Run `SUPABASE_MIGRATION_v4.4.sql` to add the `custom_title` and `is_starred` columns to the threads table.
 
 ---
 

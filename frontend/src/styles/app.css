@@ -202,7 +202,12 @@
   font-size: 13px; font-weight: 400; color: var(--sidebar-text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   margin-bottom: 2px; line-height: 1.4;
+  /* Reserve space so text never slides under the resting star */
+  padding-right: 18px;
+  transition: padding-right 0.18s;
 }
+/* On hover, reserve space for the full 3-button action row (~74px) */
+.thread-item:hover .thread-item__title { padding-right: 74px; }
 .thread-item.active .thread-item__title { color: var(--sidebar-text-active); font-weight: 500; }
 
 .thread-item__meta {
@@ -212,16 +217,48 @@
 }
 .thread-item__meta-file { overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
 
-/* Delete button wrapper — holds bin icon + instant tooltip */
-.thread-item__delete-wrap {
-  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
-  display: inline-flex; align-items: center;
-  opacity: 0;
-  transition: opacity 0.12s;
-}
-.thread-item:hover .thread-item__delete-wrap { opacity: 1; }
+/* ── Thread action buttons (star, rename, delete) ─────────────────────── */
 
-.thread-item__delete {
+/*
+  Resting state: all three buttons are hidden (opacity 0).
+  For starred threads, only the filled star is visible at far right
+  via .thread-item__star-resting — it slides left and fades out
+  when the row is hovered and the full action row takes over.
+*/
+
+.thread-item__actions {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  display: inline-flex; align-items: center; gap: 1px;
+  opacity: 0;
+  transition: opacity 0.18s;
+}
+.thread-item:hover .thread-item__actions { opacity: 1; }
+
+/* Resting star — shown on starred threads when NOT hovered */
+.thread-item__star-resting {
+  position: absolute;
+  right: 6px; top: 50%; transform: translateY(-50%);
+  color: rgba(255,255,255,0.55);
+  font-size: 13px;
+  line-height: 1;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.18s, right 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* On hover: slide it right off and fade it out (action row takes over) */
+.thread-item:hover .thread-item__star-resting {
+  opacity: 0;
+  right: -14px;
+}
+
+/* Each action: button + instant tooltip in a wrapper */
+.thread-action-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.thread-action-btn {
   background: none; border: none;
   color: rgba(255,255,255,0.35);
   cursor: pointer;
@@ -230,16 +267,27 @@
   transition: color 0.12s, background 0.12s;
   padding: 0;
 }
-.thread-item__delete:hover {
+.thread-action-btn:hover {
+  color: rgba(255,255,255,0.75);
+  background: rgba(255,255,255,0.08);
+}
+
+/* Star button — same muted icon color whether starred or not, no yellow */
+.thread-action-wrap.starred .thread-action-btn { color: rgba(255,255,255,0.55); }
+.thread-action-wrap.starred .thread-action-btn:hover { color: rgba(255,255,255,0.85); background: rgba(255,255,255,0.08); }
+
+/* Delete button — red on hover */
+.thread-action-wrap.delete .thread-action-btn:hover {
   color: #e87070;
   background: rgba(232,112,112,0.12);
 }
 
-/* Instant tooltip — same pattern as copy button */
-.thread-item__delete-tooltip {
+/* Instant tooltip */
+.thread-action-tooltip {
   position: absolute;
   bottom: calc(100% + 5px);
-  right: 0;
+  left: 50%;
+  transform: translateX(-50%);
   background: var(--text-primary);
   color: var(--bg-elevated);
   font-size: 11px;
@@ -252,7 +300,25 @@
   transition: opacity 0.1s ease;
   z-index: 10;
 }
-.thread-item__delete-wrap:hover .thread-item__delete-tooltip { opacity: 1; }
+.thread-action-wrap:hover .thread-action-tooltip { opacity: 1; }
+
+/* Inline rename input */
+.thread-item__rename-input {
+  width: 100%;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.20);
+  border-radius: var(--radius-sm);
+  color: var(--sidebar-text-active);
+  font-size: 13px;
+  font-family: var(--font-body);
+  padding: 2px 6px;
+  outline: none;
+  margin-bottom: 2px;
+}
+.thread-item__rename-input:focus {
+  border-color: var(--accent);
+  background: rgba(255,255,255,0.10);
+}
 
 .threads-empty {
   padding: 32px 12px 16px; text-align: center;

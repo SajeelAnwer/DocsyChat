@@ -144,7 +144,7 @@ const SendIcon = () => (
   </svg>
 );
 
-export default function ChatWindow({ thread, user, onNewChat }) {
+export default function ChatWindow({ thread, user, onNewChat, onMessageSent }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -187,6 +187,7 @@ export default function ChatWindow({ thread, user, onNewChat }) {
         { id: Date.now() + '-u', role: 'user', content: text, timestamp: new Date().toISOString() },
         { ...data.message, durationMs }
       ]);
+      onMessageSent?.(thread.id);
     } catch (err) {
       setMessages(prev => prev.filter(m => m.id !== 'temp'));
       setError(err.response?.data?.error || 'Failed to send message. Please try again.');

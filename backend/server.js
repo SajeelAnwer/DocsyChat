@@ -47,14 +47,14 @@ app.use('/api/threads', threadRoutes);
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    version: 'v4.3.2',
+    version: 'v4.4.0',
     provider: process.env.AI_PROVIDER || 'gemini',
     timestamp: new Date().toISOString()
   });
 });
 
 app.listen(PORT, () => {
-  console.log(`\n🚀 DocsyChat v4.3.2 Backend running on http://localhost:${PORT}`);
+  console.log(`\n🚀 DocsyChat v4.4.0 Backend running on http://localhost:${PORT}`);
   console.log(`📦 AI Provider: ${process.env.AI_PROVIDER || 'gemini'}`);
   console.log(`🗄️  Database: Supabase`);
   console.log(`📧 Email: ${process.env.EMAIL_FROM}\n`);

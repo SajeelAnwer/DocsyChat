@@ -28,6 +28,10 @@ export const uploadDocument = async (file) => {
 
 export const getThreads = () => API.get('/threads').then(r => r.data);
 export const deleteThread = (threadId) => API.delete(`/threads/${threadId}`).then(r => r.data);
+export const renameThread = (threadId, custom_title) =>
+  API.patch(`/threads/${threadId}`, { custom_title }).then(r => r.data);
+export const starThread = (threadId, is_starred) =>
+  API.patch(`/threads/${threadId}`, { is_starred }).then(r => r.data);
 
 // ── Chat ──────────────────────────────────────────────────────────────────
 export const sendMessage = (threadId, message) =>
