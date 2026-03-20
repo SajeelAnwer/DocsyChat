@@ -15,6 +15,10 @@ export const verifyEmail = (userId, code) => API.post('/auth/verify', { userId, 
 export const resendCode = (userId) => API.post('/auth/resend', { userId }).then(r => r.data);
 export const login = (data) => API.post('/auth/login', data).then(r => r.data);
 export const getMe = () => API.get('/auth/me').then(r => r.data);
+export const deleteAccount = () => API.delete('/auth/account').then(r => r.data);
+export const forgotPassword = (email) => API.post('/auth/forgot-password', { email }).then(r => r.data);
+export const verifyResetCode = (userId, code) => API.post('/auth/verify-reset-code', { userId, code }).then(r => r.data);
+export const resetPassword = (resetToken, newPassword) => API.post('/auth/reset-password', { resetToken, newPassword }).then(r => r.data);
 
 // ── Documents / Threads ───────────────────────────────────────────────────
 export const uploadDocument = async (file) => {

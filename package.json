@@ -1,7 +1,7 @@
 {
   "name": "docsychat",
-  "version": "4.4.0",
-  "description": "DocsyChat v4.4.0 — AI-powered document Q&A chatbot",
+  "version": "4.5.0",
+  "description": "DocsyChat v4.5.0 — AI-powered document Q&A chatbot",
   "scripts": {
     "install:all": "cd backend && npm install && cd ../frontend && npm install",
     "dev:backend": "cd backend && npm run dev",

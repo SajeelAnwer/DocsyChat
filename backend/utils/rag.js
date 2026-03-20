@@ -66,6 +66,33 @@ function chunkDocument(text, chunkSize = 1000, overlap = 100) {
   return chunks;
 }
 
+// ── Quota/rate error helper ───────────────────────────────────────────────
+function parseGeminiQuotaError(status, bodyText) {
+  if (status !== 429 && status !== 503) return null;
+  const lower = bodyText.toLowerCase();
+  // Daily quota exhausted
+  if (lower.includes('quota') && (lower.includes('day') || lower.includes('daily') || lower.includes('exhausted'))) {
+    return { type: 'quota_daily', message: 'Daily API quota reached. Usage resets at midnight Pacific Time — please try again tomorrow.' };
+  }
+  // Per-minute rate limit
+  if (lower.includes('rate') || lower.includes('per minute') || lower.includes('rpm') || lower.includes('resource_exhausted')) {
+    return { type: 'quota_rpm', message: 'API rate limit reached. Please wait about a minute and try again.' };
+  }
+  // Generic 429
+  if (status === 429) {
+    return { type: 'quota_rpm', message: 'API rate limit reached. Please wait a moment and try again.' };
+  }
+  return null;
+}
+
+class QuotaError extends Error {
+  constructor(type, message) {
+    super(message);
+    this.name = 'QuotaError';
+    this.quotaType = type; // 'quota_daily' | 'quota_rpm'
+  }
+}
+
 // ── Generate embedding via direct fetch ───────────────────────────────────
 async function getEmbedding(text) {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -84,6 +111,8 @@ async function getEmbedding(text) {
 
   if (!response.ok) {
     const errText = await response.text();
+    const quota = parseGeminiQuotaError(response.status, errText);
+    if (quota) throw new QuotaError(quota.type, quota.message);
     throw new Error(`Embedding API error ${response.status}: ${errText}`);
   }
 
@@ -197,5 +226,6 @@ module.exports = {
   retrieveAllChunks,
   buildContext,
   chunkDocument,
-  isSummaryQuery
+  isSummaryQuery,
+  QuotaError
 };

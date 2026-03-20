@@ -1,7 +1,7 @@
 {
   "name": "docsychat-backend",
-  "version": "4.4.0",
-  "description": "DocsyChat v4.4.0 backend — with Supabase, auth, email verification, and RAG",
+  "version": "4.5.0",
+  "description": "DocsyChat v4.5.0 backend — with Supabase, auth, email verification, and RAG",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

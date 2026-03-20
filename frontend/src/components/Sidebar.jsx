@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { deleteAccount } from '../utils/api';
 
 const DocIcon = () => (
   <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
@@ -6,7 +7,22 @@ const DocIcon = () => (
   </svg>
 );
 
-// Claude-style pencil/edit icon
+const PlusIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="12" y1="5" x2="12" y2="19" />
+    <line x1="5" y1="12" x2="19" y2="12" />
+  </svg>
+);
+
+const SearchIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="8" />
+    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+  </svg>
+);
+
 const RenameIcon = () => (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
     stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -15,7 +31,6 @@ const RenameIcon = () => (
   </svg>
 );
 
-// Claude-style star icon — empty
 const StarEmptyIcon = () => (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
     stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -23,7 +38,6 @@ const StarEmptyIcon = () => (
   </svg>
 );
 
-// Filled star for starred threads
 const StarFilledIcon = () => (
   <svg width="13" height="13" viewBox="0 0 24 24"
     fill="currentColor" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -31,7 +45,6 @@ const StarFilledIcon = () => (
   </svg>
 );
 
-// Gemini-style bin icon
 const BinIcon = () => (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
     stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -43,7 +56,37 @@ const BinIcon = () => (
   </svg>
 );
 
-// Reusable icon button with instant tooltip
+// Three-dot (ellipsis) icon
+const DotsIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+    <circle cx="5" cy="12" r="2" />
+    <circle cx="12" cy="12" r="2" />
+    <circle cx="19" cy="12" r="2" />
+  </svg>
+);
+
+// Google-style sign out icon (person leaving a door)
+const SignOutIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    <polyline points="16 17 21 12 16 7" />
+    <line x1="21" y1="12" x2="9" y2="12" />
+  </svg>
+);
+
+// Trash icon for delete account
+const DeleteAccountIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+    <path d="M10 11v6" />
+    <path d="M14 11v6" />
+    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+  </svg>
+);
+
 function ThreadAction({ icon, tooltip, onClick, className = '' }) {
   return (
     <div className={`thread-action-wrap ${className}`}>
@@ -59,7 +102,6 @@ function ThreadAction({ icon, tooltip, onClick, className = '' }) {
   );
 }
 
-// Inline rename input — shown instead of title when editing
 function RenameInput({ currentTitle, onSave, onCancel }) {
   const [value, setValue] = useState(currentTitle);
   const inputRef = useRef(null);
@@ -103,15 +145,95 @@ function timeAgo(dateStr) {
 
 export default function Sidebar({ user, threads, activeThreadId, onSelectThread, onNewChat, onDeleteThread, onRenameThread, onStarThread, onLogout }) {
   const [editingId, setEditingId] = useState(null);
+  const [searchActive, setSearchActive] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
+  // Refs for click-outside detection
+  const searchInputRef = useRef(null);
+  const searchBoxRef = useRef(null);
+  const threadsRef = useRef(null);
+  const menuRef = useRef(null);
+
   const initials = `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
+
+  // Close search when user clicks outside the search box and the thread list
+  useEffect(() => {
+    if (!searchActive) return;
+    const handleMouseDown = (e) => {
+      const inSearch = searchBoxRef.current?.contains(e.target);
+      const inThreads = threadsRef.current?.contains(e.target);
+      if (!inSearch && !inThreads) {
+        setSearchActive(false);
+        setSearchQuery('');
+      }
+    };
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => document.removeEventListener('mousedown', handleMouseDown);
+  }, [searchActive]);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleMouseDown = (e) => {
+      if (!menuRef.current?.contains(e.target)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => document.removeEventListener('mousedown', handleMouseDown);
+  }, [menuOpen]);
+
+  const handleSearchFocus = () => setSearchActive(true);
+
+  const handleSearchKey = (e) => {
+    if (e.key === 'Escape') {
+      setSearchActive(false);
+      setSearchQuery('');
+      searchInputRef.current?.blur();
+    }
+  };
+
+  const handleSelectThread = (threadId) => {
+    setSearchActive(false);
+    setSearchQuery('');
+    onSelectThread(threadId);
+  };
 
   const handleRenameSubmit = (threadId, newTitle) => {
     setEditingId(null);
     onRenameThread(threadId, newTitle);
   };
 
+  const handleDeleteAccount = async () => {
+    setDeletingAccount(true);
+    try {
+      await deleteAccount();
+      localStorage.removeItem('docsychat_token');
+      localStorage.removeItem('docsychat_user');
+      onLogout();
+    } catch (err) {
+      console.error('Failed to delete account:', err);
+      setDeletingAccount(false);
+      setShowDeleteModal(false);
+    }
+  };
+
+  const filteredThreads = searchActive && searchQuery.trim()
+    ? threads.filter(t => {
+        const q = searchQuery.toLowerCase();
+        return (
+          t.displayTitle?.toLowerCase().includes(q) ||
+          t.file_name?.toLowerCase().includes(q)
+        );
+      })
+    : threads;
+
   return (
-    <aside className="sidebar">
+    <>
+      <aside className="sidebar">
       <div className="sidebar__top">
         <div className="sidebar__brand">
           <div className="sidebar__brand-mark"><DocIcon /></div>
@@ -119,27 +241,58 @@ export default function Sidebar({ user, threads, activeThreadId, onSelectThread,
         </div>
       </div>
 
+      {/* New Document Chat — flat Claude-style button */}
       <button className="sidebar__new-btn" onClick={onNewChat}>
-        <span className="sidebar__new-icon">+</span>
+        <span className="sidebar__new-icon"><PlusIcon /></span>
         <span>New Document Chat</span>
       </button>
 
-      <div className="sidebar__threads">
-        {threads.length > 0 && <div className="sidebar__threads-label">Your Chats</div>}
+      {/* Search box — always visible, activates on focus */}
+      <div
+        ref={searchBoxRef}
+        className={`sidebar__search-box ${searchActive ? 'active' : ''}`}
+      >
+        <span className="sidebar__search-box-icon"><SearchIcon /></span>
+        <input
+          ref={searchInputRef}
+          className="sidebar__search-box-input"
+          type="text"
+          placeholder="Search chats"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          onFocus={handleSearchFocus}
+          onKeyDown={handleSearchKey}
+        />
+      </div>
+
+      <div className="sidebar__threads" ref={threadsRef}>
+        {threads.length > 0 && (
+          <div className="sidebar__threads-label">
+            {searchActive && searchQuery.trim()
+              ? `${filteredThreads.length} result${filteredThreads.length !== 1 ? 's' : ''}`
+              : 'Your Chats'}
+          </div>
+        )}
+
         {threads.length === 0 ? (
           <div className="threads-empty">
             <div className="threads-empty-icon">📂</div>
             <div>No chats yet.</div>
             <div style={{ fontSize: '12px', marginTop: '4px', opacity: 0.7 }}>Upload a document to begin.</div>
           </div>
+        ) : filteredThreads.length === 0 ? (
+          <div className="threads-empty">
+            <div className="threads-empty-icon">🔍</div>
+            <div>No chats found.</div>
+            <div style={{ fontSize: '12px', marginTop: '4px', opacity: 0.7 }}>Try a different search term.</div>
+          </div>
         ) : (
-          threads.map(thread => (
+          filteredThreads.map(thread => (
             <div
               key={thread.id}
               className={`thread-item ${thread.id === activeThreadId ? 'active' : ''} ${thread.is_starred ? 'starred' : ''}`}
-              onClick={() => editingId !== thread.id && onSelectThread(thread.id)}
+              onClick={() => editingId !== thread.id && handleSelectThread(thread.id)}
             >
-              {/* Title — inline input when editing, text otherwise */}
               {editingId === thread.id ? (
                 <RenameInput
                   currentTitle={thread.displayTitle}
@@ -152,7 +305,6 @@ export default function Sidebar({ user, threads, activeThreadId, onSelectThread,
                 </div>
               )}
 
-              {/* Resting star — visible at far right on starred threads when not hovered */}
               {thread.is_starred && editingId !== thread.id && (
                 <span className="thread-item__star-resting" aria-hidden="true">★</span>
               )}
@@ -161,7 +313,6 @@ export default function Sidebar({ user, threads, activeThreadId, onSelectThread,
                 <span>{timeAgo(thread.last_message_at || thread.created_at)}</span>
               </div>
 
-              {/* Action buttons — appear on hover */}
               {editingId !== thread.id && (
                 <div className="thread-item__actions">
                   <ThreadAction
@@ -188,6 +339,7 @@ export default function Sidebar({ user, threads, activeThreadId, onSelectThread,
         )}
       </div>
 
+      {/* Bottom — user info + three-dot menu */}
       <div className="sidebar__bottom">
         <div className="sidebar__user">
           <div className="sidebar__avatar">{initials}</div>
@@ -195,9 +347,82 @@ export default function Sidebar({ user, threads, activeThreadId, onSelectThread,
             <div className="sidebar__username">{user.fullName}</div>
             <div className="sidebar__useremail">{user.email}</div>
           </div>
-          <button className="sidebar__logout" onClick={onLogout} title="Sign out">↩</button>
+
+          {/* Three-dot menu */}
+          <div className="sidebar__menu-wrap" ref={menuRef}>
+            {/* Dropdown — pops upward */}
+            {menuOpen && (
+              <div className="sidebar__menu">
+                <button
+                  className="sidebar__menu-item"
+                  onClick={() => { setMenuOpen(false); onLogout(); }}
+                >
+                  <SignOutIcon />
+                  <span>Sign out</span>
+                </button>
+                <button
+                  className="sidebar__menu-item sidebar__menu-item--delete"
+                  onClick={() => { setMenuOpen(false); setShowDeleteModal(true); }}
+                >
+                  <DeleteAccountIcon />
+                  <span>Delete account</span>
+                </button>
+              </div>
+            )}
+
+            <div className="sidebar__dots-wrap">
+              <button
+                className="sidebar__dots-btn"
+                onClick={() => { setMenuOpen(o => !o); setShowDeleteModal(false); }}
+                aria-label="More options"
+              >
+                <DotsIcon />
+              </button>
+              <span className="sidebar__dots-tooltip">More options</span>
+            </div>
+          </div>
         </div>
       </div>
-    </aside>
+      </aside>
+
+      {/* Delete account confirmation modal */}
+      {showDeleteModal && (
+        <div className="delete-modal-overlay">
+          <div className="delete-modal">
+            <div className="delete-modal__icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6" /><path d="M14 11v6" />
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+              </svg>
+            </div>
+            <h3 className="delete-modal__title">Delete your account?</h3>
+            <p className="delete-modal__body">
+              This will permanently delete your account and everything associated with it —
+              all chats, uploaded documents, and message history. This action is final and
+              cannot be undone.
+            </p>
+            <div className="delete-modal__actions">
+              <button
+                className="delete-modal__btn delete-modal__btn--cancel"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deletingAccount}
+              >
+                No, keep my account
+              </button>
+              <button
+                className="delete-modal__btn delete-modal__btn--confirm"
+                onClick={handleDeleteAccount}
+                disabled={deletingAccount}
+              >
+                {deletingAccount ? 'Deleting…' : 'Yes, delete permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

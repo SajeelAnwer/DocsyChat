@@ -1,4 +1,4 @@
-# 📄 DocsyChat v4.4 — AI Document Q&A Chatbot
+# 📄 DocsyChat v4.5 — AI Document Q&A Chatbot
 
 A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file and ask questions about it — DocsyChat answers from the document's content using Retrieval-Augmented Generation (RAG). Summarize it, ask specific questions, or dig into details — all grounded in what's actually in the file.
 
@@ -10,17 +10,21 @@ A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file an
 - **Adaptive RAG pipeline** — automatically selects the best retrieval strategy based on document size; small documents skip vector search entirely for faster and more accurate responses
 - **Summary detection** — asking for a summary or overview sends the full document to the model instead of running vector search
 - **Case-robust retrieval** — query expansion ensures results are consistent regardless of how you capitalize your question
-- **Thinking indicator** — while DocsyChat is processing, a status message shows what it's doing (reading, searching, finding sections). After it responds, a small label shows how long it took
-- **Copy button** — every message has a copy button next to the timestamp. Hover over it to see "Copy prompt" or "Copy response", click to copy to clipboard. Confirms with a checkmark
-- **Star chats** — star any thread to pin it to the top of the sidebar. Starred threads show a filled star; unstarred show an empty star
+- **Thinking indicator** — while DocsyChat is processing, a status message shows what it's doing. After it responds, a small label shows how long it took
+- **Copy button** — every message has a copy button next to the timestamp. Hover to see "Copy prompt" or "Copy response", click to copy. Confirms with a checkmark
+- **Star chats** — star any thread to pin it to the top of the sidebar. A resting star is visible at rest; hovering reveals the full action row
 - **Rename threads** — click the rename button on any thread to give it a custom name inline. Press Enter to save or Escape to cancel
-- **Auto-focus input** — the message box becomes active automatically after every response so you can keep typing without clicking
-- **Smart timestamps** — messages show a context-aware date and time (time only for today, date + time for older messages)
+- **Search chats** — a persistent search box in the sidebar filters threads in real time by chat name or document filename. Clicking outside or pressing Escape clears it
+- **Forgot password** — email-based password reset with a 6-digit code, same flow as signup verification
+- **Account management** — a three-dot menu at the bottom of the sidebar provides Sign out and Delete account options. Deleting an account permanently removes all data
+- **API quota error handling** — when the Gemini API quota is hit, DocsyChat shows a clear banner telling the user whether to wait a minute (rate limit) or try again tomorrow (daily quota)
+- **Auto-focus input** — the message box becomes active automatically after every response
+- **Smart timestamps** — messages show a context-aware date and time. Thread timestamps reflect the last message, not when the chat was created
 - **Email authentication** — signup with email and password, verified via a 6-digit code sent to your inbox
 - **Persistent storage** — all users, documents, threads, and messages stored in Supabase PostgreSQL
 - **Conversation history** — chat threads persist across sessions with full message history
 - **Multi-provider AI** — defaults to Google Gemini, configurable to OpenAI
-- **Warm cream UI** — Fraunces + Instrument Sans typography, purple accent, dark sidebar
+- **Clean white UI** — Fraunces + Instrument Sans typography, purple accent, dark sidebar
 
 ---
 
@@ -35,7 +39,7 @@ A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file an
 | Google Gemini `gemini-embedding-001` | Document and query embeddings (1536 dimensions) |
 | bcryptjs | Password hashing (12 salt rounds) |
 | jsonwebtoken | JWT session tokens (7-day expiry) |
-| Nodemailer + Gmail SMTP | Verification email delivery |
+| Nodemailer + Gmail SMTP | Verification and password reset email delivery |
 | multer | File upload handling |
 | pdf-parse + mammoth | PDF and DOCX text extraction |
 | express-rate-limit | Rate limiting — 100 req/15 min general, 20 req/15 min on auth routes |
@@ -47,14 +51,13 @@ A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file an
 | React 18 | UI framework |
 | Axios | HTTP client with automatic JWT header attachment |
 | react-markdown | Renders AI responses as formatted markdown |
-| framer-motion | UI animations |
 | Fraunces + Instrument Sans | Google Fonts typography |
 
 ### Database Schema (Supabase)
 | Table | Purpose |
 |---|---|
 | `users` | Accounts — email, hashed password, first/last name, verified flag |
-| `verification_codes` | 6-digit email codes with 15-minute expiry, one per user |
+| `verification_codes` | 6-digit email codes with 15-minute expiry — used for signup and password reset |
 | `documents` | Uploaded file metadata — filename, char count, chunk count |
 | `document_chunks` | Text chunks with 1536-dim vector embeddings for RAG |
 | `threads` | Chat sessions linked to a document and user |
@@ -65,22 +68,22 @@ A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file an
 ## 📁 Project Structure
 
 ```
-DocsyChat_v4.4.1/
+DocsyChat_v4.5/
 ├── backend/
 │   ├── middleware/
 │   │   └── auth.js               # JWT auth middleware — protects all non-auth routes
 │   ├── routes/
-│   │   ├── auth.js               # Signup, login, verify email, resend code, /me
+│   │   ├── auth.js               # Signup, login, verify, resend, forgot/reset password, /me, delete account
 │   │   ├── chat.js               # Send message, get AI response, load history
 │   │   ├── threads.js            # List, patch (rename/star), and delete threads
 │   │   └── upload.js             # File upload, text extraction, background embedding
 │   ├── utils/
-│   │   ├── ai.js                 # Gemini / OpenAI chat abstraction
-│   │   ├── email.js              # Nodemailer — sends branded verification emails
+│   │   ├── ai.js                 # Gemini / OpenAI chat abstraction with quota error detection
+│   │   ├── email.js              # Nodemailer — verification and password reset emails
 │   │   ├── extractor.js          # PDF / DOCX / TXT text extraction + cleanup
-│   │   ├── rag.js                # Chunking, embedding, adaptive retrieval
+│   │   ├── rag.js                # Chunking, embedding, adaptive retrieval, QuotaError class
 │   │   └── supabase.js           # Supabase client initialisation
-│   ├── .env                      # Environment variables (see setup section)
+│   ├── .env.example              # Environment variable template — copy to .env and fill in
 │   ├── package.json
 │   └── server.js                 # Express app — middleware, routes, server start
 ├── frontend/
@@ -88,10 +91,10 @@ DocsyChat_v4.4.1/
 │   │   └── index.html
 │   └── src/
 │       ├── components/
-│       │   ├── AuthScreen.jsx    # Login, Signup, and Email Verification screens
+│       │   ├── AuthScreen.jsx    # Login, Signup, Verify, Forgot Password, Reset Password
 │       │   ├── ChatLayout.jsx    # Main app shell — manages threads and view state
-│       │   ├── ChatWindow.jsx    # Message list, input bar, thinking indicator
-│       │   ├── Sidebar.jsx       # Thread list, user info, logout button
+│       │   ├── ChatWindow.jsx    # Message list, input bar, thinking indicator, error banners
+│       │   ├── Sidebar.jsx       # Thread list, search, three-dot menu, user info
 │       │   └── UploadZone.jsx    # Drag-and-drop or click-to-browse file upload
 │       ├── styles/
 │       │   ├── app.css           # All component styles
@@ -101,8 +104,8 @@ DocsyChat_v4.4.1/
 │       ├── App.js                # Root — token validation on load, auth/app routing
 │       └── index.js
 ├── SUPABASE_SETUP.sql            # Full DB setup — run once for a fresh install
-├── SUPABASE_MIGRATION_v3.1.sql   # Migration script — run only if upgrading from v3.0
-├── SUPABASE_MIGRATION_v4.4.sql   # Migration script — run only if upgrading from v4.3.x
+├── SUPABASE_MIGRATION_v3.1.sql   # Migration — run only if upgrading from v3.0
+├── SUPABASE_MIGRATION_v4.4.sql   # Migration — run only if upgrading from v4.3.x
 ├── CHANGELOG.md
 └── README.md
 ```
@@ -122,41 +125,38 @@ DocsyChat_v4.4.1/
 
 ### Step 1 — Set up the Supabase database
 
-1. Open your Supabase project (create a new project if needed) → **SQL Editor**
-2. Enable pgvector (required for RAG) by running: `create extension if not exists vector;`
-3. Copy the entire contents of `SUPABASE_SETUP.sql` and paste it in
-4. Click **Run**
+1. Open your Supabase project → **SQL Editor**
+2. Enable pgvector: `create extension if not exists vector;`
+3. Copy the entire contents of `SUPABASE_SETUP.sql` and run it
 
-This creates all 6 tables, performance indexes, and the `match_chunks` vector similarity function. You only need to do this once.
+This creates all 6 tables, indexes, and the `match_chunks` vector similarity function. Only needed once.
 
-> **Note:** If you encounter an embeddings-related error after setup, run `SUPABASE_MIGRATION_v3.1.sql` in the SQL Editor as well.
-
-> **Upgrading from v4.3.x?** Run `SUPABASE_MIGRATION_v4.4.sql` to add the `custom_title` and `is_starred` columns to the threads table.
+> **Upgrading from v4.3.x?** Also run `SUPABASE_MIGRATION_v4.4.sql` in the SQL Editor.
 
 ---
 
-### Step 2 — Configure environment variables (.env)
+### Step 2 — Configure environment variables
 
-Open `backend/.env` and fill in your values:
+Copy `backend/.env.example` to `backend/.env` and fill in your values:
 
 ```env
 # AI Provider — "gemini" (default) or "openai"
 AI_PROVIDER=gemini
 GEMINI_API_KEY=your_gemini_api_key_here
-OPENAI_API_KEY=your_openai_api_key_here   # only needed if using OpenAI
+OPENAI_API_KEY=your_openai_api_key_here
 
 # Supabase — from Dashboard → Settings → API
-SUPABASE_URL=https://xxxxxxxxxxx.supabase.co
+SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_ANON_KEY=your_supabase_anon_public_key
 SUPABASE_DB_PASSWORD=your_supabase_db_password
 
-# JWT — use any long random string, change in production
-JWT_SECRET=some_long_random_secret_here
+# JWT — use a long random string, keep it secret
+JWT_SECRET=replace_with_a_long_random_string_at_least_32_chars
 JWT_EXPIRES_IN=7d
 
 # Email — Gmail SMTP
 EMAIL_FROM=your_gmail@gmail.com
-EMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx   # 16-char Gmail App Password
+EMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
 
 # Server
 PORT=5000
@@ -169,15 +169,13 @@ RAG_CHUNK_OVERLAP=100
 RAG_MIN_SIMILARITY=0.35
 ```
 
-**For Gemini API Key:**
-1. Go to: https://aistudio.google.com/app/apikey
-2. Sign in with Google
-3. Click **"Create API Key"**
-4. Copy the key
+**Gemini API Key:** [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) → Create API Key
 
-**Supabase credentials:** Supabase Dashboard → Settings → API → copy Project URL and the `anon public` key.
+**Supabase credentials:** Supabase Dashboard → Settings → API → Project URL + anon public key
 
-**Gmail App Password:** Google Account → Security → 2-Step Verification must be ON → App Passwords → create one with any name (e.g. "DocsyChat") → copy the 16-character password shown.
+**Gmail App Password:** Google Account → Security → 2-Step Verification ON → App Passwords → create one for DocsyChat
+
+**JWT Secret:** Generate a strong random string at [randomkeygen.com](https://randomkeygen.com)
 
 ---
 
@@ -204,14 +202,13 @@ Open [http://localhost:3000](http://localhost:3000).
 ### First Use
 
 1. Click **Sign up** on the login screen
-2. Enter your first name, last name, email address, and a password (minimum 8 characters)
-3. Check your inbox for a 6-digit verification code — it expires in 15 minutes
-4. Enter the code on the verification screen — you're logged in automatically
+2. Enter your name, email, and a password (minimum 8 characters)
+3. Check your inbox for a 6-digit verification code — expires in 15 minutes
+4. Enter the code — you're logged in automatically
 5. Click **New Document Chat** in the sidebar
-6. Upload a PDF, DOCX, or TXT file (max 10 MB) by clicking anywhere on the upload box or dragging a file onto it
-7. The document is embedded in the background — this takes a few seconds depending on document length
-8. Ask any question about the document — while DocsyChat thinks, you'll see a status message showing what it's doing
-9. Click the copy icon next to any message timestamp to copy the text to your clipboard
+6. Upload a PDF, DOCX, or TXT file (max 10 MB)
+7. The document is embedded in the background — takes a few seconds
+8. Ask any question about the document
 
 ---
 
@@ -219,16 +216,16 @@ Open [http://localhost:3000](http://localhost:3000).
 
 **On upload:**
 1. Text is extracted from the file
-2. The text is split into sentence-aware chunks (~1,000 characters each with 100-character overlap)
+2. Split into sentence-aware chunks (~1,000 characters each, 100-character overlap)
 3. Each chunk is embedded using `gemini-embedding-001` (1536 dimensions) and stored in Supabase via pgvector
 
-**On each message — three strategies are used automatically:**
+**On each message — three strategies used automatically:**
 
 | Situation | Strategy |
 |---|---|
-| Document has ≤ 25 chunks (short document) | All chunks sent directly — no vector search |
-| Summary or overview question on any document | All chunks sent directly — no vector search |
-| Long document + specific question | Vector search — top chunks by cosine similarity |
+| Document has ≤ 25 chunks | All chunks sent directly — no vector search |
+| Summary or overview question | All chunks sent directly — no vector search |
+| Large document + specific question | Vector search — top chunks by cosine similarity |
 
 ---
 
@@ -249,22 +246,27 @@ Maximum file size: **10 MB**
 ### Auth — `/api/auth`
 | Method | Route | Auth required | Description |
 |---|---|---|---|
-| POST | `/signup` | No | Create account, triggers verification email |
-| POST | `/verify` | No | Submit 6-digit code, returns JWT on success |
+| POST | `/signup` | No | Create account, sends verification email |
+| POST | `/verify` | No | Submit 6-digit code, returns JWT |
 | POST | `/resend` | No | Resend verification code |
-| POST | `/login` | No | Login with email + password, returns JWT |
+| POST | `/login` | No | Login, returns JWT |
 | GET | `/me` | Yes | Return current user info from token |
+| POST | `/forgot-password` | No | Send 6-digit password reset code to email |
+| POST | `/verify-reset-code` | No | Verify reset code, returns short-lived reset token |
+| POST | `/reset-password` | No | Set new password using reset token |
+| DELETE | `/account` | Yes | Permanently delete account and all data |
 
 ### Upload — `/api/upload`
 | Method | Route | Auth required | Description |
 |---|---|---|---|
-| POST | `/` | Yes | Upload document; creates thread, triggers background embedding |
+| POST | `/` | Yes | Upload document, creates thread, triggers background embedding |
 
 ### Threads — `/api/threads`
 | Method | Route | Auth required | Description |
 |---|---|---|---|
-| GET | `/` | Yes | List all threads for the logged-in user |
-| DELETE | `/:threadId` | Yes | Delete thread, messages, chunks, and document |
+| GET | `/` | Yes | List all threads, sorted starred-first then by last activity |
+| PATCH | `/:threadId` | Yes | Rename or star/unstar a thread |
+| DELETE | `/:threadId` | Yes | Delete thread, messages, and document data |
 
 ### Chat — `/api/chat`
 | Method | Route | Auth required | Description |
@@ -272,7 +274,7 @@ Maximum file size: **10 MB**
 | POST | `/:threadId` | Yes | Send a message, returns AI response |
 | GET | `/:threadId/messages` | Yes | Load full message history for a thread |
 
-All protected routes require the header: `Authorization: Bearer <token>`
+All protected routes require: `Authorization: Bearer <token>`
 
 ---
 
@@ -289,6 +291,6 @@ Set `AI_PROVIDER=openai` in `.env` and provide your `OPENAI_API_KEY`. The chat m
 | `GEMINI_API_KEY` | [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) — free |
 | `SUPABASE_URL` | Supabase Dashboard → Settings → API → Project URL |
 | `SUPABASE_ANON_KEY` | Supabase Dashboard → Settings → API → anon/public key |
-| `SUPABASE_DB_PASSWORD` | Password you set when creating the Supabase project |
+| `SUPABASE_DB_PASSWORD` | Password set when creating the Supabase project |
 | `EMAIL_APP_PASSWORD` | Google Account → Security → 2-Step Verification → App Passwords |
-| `JWT_SECRET` | Any long random string — generate one at [randomkeygen.com](https://randomkeygen.com) |
+| `JWT_SECRET` | Any long random string — generate at [randomkeygen.com](https://randomkeygen.com) |

@@ -2,105 +2,148 @@
 
 ---
 
-## v4.4 — Star & Rename Threads
+## v4.5 — Beta Release
 
-**Previous version (v4.3.2)** replaced the ✕ delete button with a Gemini-style bin icon and added an instant custom tooltip.
-
----
-
-### What changed in v4.4 (plain language)
-
-**Star threads**
-- You can now star any thread in the sidebar. Starred threads float to the top of the list. Click the star again to unstar.
-- When a starred thread is not hovered, a small filled star is visible at the far right of the thread item. When you hover the thread, that resting star slides off to the right and fades out as the full action row (star, rename, delete) slides into view.
-- The star button in the action row uses the same muted white/gray color as the rename and delete icons — no yellow.
-
-**Rename threads**
-- Click the pencil icon on any thread to rename it. The thread title turns into an inline text input. Press Enter to save or Escape to cancel. Blur also saves.
-- The original document filename is preserved in the database even after renaming. If you clear a custom name, the thread reverts to the filename.
-
-**Unified action buttons**
-- The three action buttons — star, rename, delete — appear together on hover, consistently spaced. They use the same instant tooltip pattern as the copy button.
-
-**Thread re-ordering on activity**
-- Sending a message now moves the thread up to the most recent position in its group. Starred threads stay pinned above unstarred ones, but within each group the order is updated by last activity immediately — no page reload needed.
-
-**Sidebar label**
-- The "RECENT" label above the thread list has been renamed to "Your Chats".
-
-
-- Long document filenames no longer bleed under the action buttons. The title reserves padding for the resting star at rest, and for the full action row on hover, so text always truncates cleanly with an ellipsis before any buttons.
-
-**Last-activity timestamp**
-- The timestamp shown under each thread title now reflects the last message in that chat, not when the thread was created. Sending a new message updates the timestamp immediately.
+**Previous version (v4.4)** added star/rename threads and last-activity timestamps.
 
 ---
 
-### Technical details
+### What changed in v4.5
 
-**Database changes**
+**Forgot password**
+- Full email-based password reset flow: enter email → receive 6-digit code → verify code → set new password → redirected to login with a success message.
+- Uses the existing `verification_codes` table — no new database tables required.
+- Three new backend endpoints: `POST /api/auth/forgot-password`, `POST /api/auth/verify-reset-code`, `POST /api/auth/reset-password`.
+- Reset code is verified with a short-lived scoped JWT (15 min expiry) before the password change is accepted.
 
-Two new columns added to the `threads` table:
-- `custom_title text` — stores the user-defined name. `null` means the thread is using the default (document filename).
-- `is_starred boolean default false` — starred state.
+**Chat search**
+- A persistent search box in the sidebar filters threads in real time by chat name or document filename.
+- At rest it shows a quiet placeholder. Clicking activates it; clicking outside or pressing Escape closes and clears it.
+- Clicking a search result opens the chat and closes search in one action.
 
-A new index `idx_threads_starred` on `(user_id, is_starred)` supports the sorted query. A migration file `SUPABASE_MIGRATION_v4.4.sql` is included for existing installs.
+**Three-dot menu and account deletion**
+- The old sign-out button replaced with a three-dot (⋯) menu with an instant "More options" tooltip.
+- Menu contains Sign Out and Delete Account. Delete Account shows a full-screen confirmation modal before executing.
+- Account deletion cascades: messages → threads → document chunks → documents → verification codes → user row.
 
-**Backend — `backend/routes/threads.js`**
+**API quota error handling**
+- When the Gemini API returns a 429 rate limit or daily quota error, the app now shows a clear banner to the user instead of a vague AI reply.
+- Banners are colour-coded by type: amber for daily quota (try tomorrow), blue for rate limit (wait a minute), grey for document still processing, red for generic errors. All banners are dismissible.
+- The "document still processing" case now properly rolls back the user message and returns a 503 instead of passing a placeholder string to the AI.
 
-- `GET /api/threads` — now fetches the latest message `created_at` for each thread in parallel and returns it as `last_message_at`. Falls back to `thread.created_at` if the thread has no messages yet.
-- `PATCH /api/threads/:threadId` — new endpoint. Accepts `{ custom_title }` for rename or `{ is_starred }` for star toggle, or both. Updates only the provided fields. Response includes `last_message_at`.
-- `GET /api/threads` response includes `custom_title`, `is_starred`, `last_message_at`, sorted starred-first then by `created_at` descending.
+**Auth screen redesign**
+- Login, signup, verify, forgot password, and reset password screens all use a split layout: dark left panel with branding, white right panel with the form.
 
-**Frontend API — `frontend/src/utils/api.js`**
+**White theme**
+- App-wide background changed from warm cream to `#f7f8fa`. All surfaces, text, borders, and shadows updated to match neutral values. Paper texture overlay removed.
 
-Added `renameThread(threadId, custom_title)` and `starThread(threadId, is_starred)` — both call `PATCH /api/threads/:threadId`.
+**Chat header redesign**
+- New minimal inline header: file icon + filename + "Document Q&A" as plain text. No badge box, no "+ New" button.
+- If the chat has been renamed, the custom title appears as the primary header line and the original document filename appears below it in smaller text.
+- Header background has a subtle purple hue matching the app accent colour.
 
-**`ChatLayout.jsx`**
-
-- `normalizeThread` updated to compute `displayTitle = custom_title || file_name` and carry `last_message_at`.
-- `handleRenameThread` — optimistic update using `custom_title`; reloads from server on failure.
-- `handleStarThread` — optimistic update toggles `is_starred` and re-sorts threads in state (starred first) without a server round trip; reloads on failure.
-- `handleMessageSent(threadId)` — new callback. Updates `last_message_at` to `now` in local thread state immediately after a successful AI response. Passed to `ChatWindow` as `onMessageSent`.
-
-**`ChatWindow.jsx`**
-
-- Accepts `onMessageSent` prop. Calls it with `thread.id` after each successful AI response so the sidebar timestamp updates without a reload.
-
-**`Sidebar.jsx`**
-
-- Replaced the single delete button with a `thread-item__actions` row containing three `ThreadAction` components (star, rename, delete). All three are hidden by default and appear on hover.
-- `ThreadAction` — reusable wrapper providing the instant tooltip pattern.
-- `RenameInput` — inline input rendered inside the thread item when editing. Auto-focuses and selects all text on mount. Enter saves, Escape cancels, blur saves.
-- `StarFilledIcon` / `StarEmptyIcon` — filled and outline star SVGs. `RenameIcon` — pencil SVG.
-- Resting star: `{thread.is_starred && <span className="thread-item__star-resting">★</span>}` rendered as a sibling to the title, hidden during rename editing.
-- Thread timestamp uses `thread.last_message_at || thread.created_at`.
-
-**CSS — `frontend/src/styles/app.css`**
-
-- `.thread-item__title` — adds `padding-right: 18px` at rest (reserves space for the resting star) and `padding-right: 74px` on hover (reserves space for the full 3-button action row). Transition on `padding-right` keeps the text reflow smooth.
-- `.thread-item__actions` — flex row, absolutely positioned right, `opacity: 0` until hover.
-- `.thread-action-wrap` / `.thread-action-btn` — shared base styles for all three buttons.
-- `.thread-action-wrap.delete` — red on hover.
-- `.thread-action-tooltip` — instant tooltip, same `opacity 0.1s` pattern as the copy button.
-- `.thread-item__star-resting` — `★` glyph at `right: 6px`, `font-size: 13px` (matches SVG icon size), `rgba(255,255,255,0.55)`. On hover: slides to `right: -14px` and `opacity: 0` via `cubic-bezier(0.4,0,0.2,1)` transition.
-- `.thread-item__rename-input` — inline input styled to match the dark sidebar.
+**Sidebar flat buttons**
+- "New Document Chat" restyled to a borderless flat button matching Claude's sidebar style.
 
 ---
 
-### Files changed
+### Files changed in v4.5
 
 | File | What changed |
 |---|---|
-| `backend/routes/threads.js` | Added `PATCH /:threadId`; `GET /` now fetches and returns `last_message_at`, `custom_title`, `is_starred`, sorted starred first |
+| `backend/routes/auth.js` | Added forgot-password, verify-reset-code, reset-password, delete-account endpoints |
+| `backend/utils/email.js` | Added `sendPasswordResetEmail()` |
+| `backend/utils/ai.js` | Added quota error detection — rethrows as `QuotaError` |
+| `backend/utils/rag.js` | Added `QuotaError` class and `parseGeminiQuotaError()` |
+| `backend/routes/chat.js` | Handles `QuotaError` (429) and no-chunks (503) with proper status codes |
+| `frontend/src/utils/api.js` | Added `forgotPassword`, `verifyResetCode`, `resetPassword`, `deleteAccount` |
+| `frontend/src/components/AuthScreen.jsx` | Full split-layout redesign; added ForgotPasswordForm, ResetVerifyForm, ResetPasswordForm |
+| `frontend/src/components/Sidebar.jsx` | Three-dot menu, delete modal, search box, flat new-chat button |
+| `frontend/src/components/ChatWindow.jsx` | Typed error banners; new minimal header with renamed-chat support |
+| `frontend/src/styles/globals.css` | White theme CSS variables; removed paper texture |
+| `frontend/src/styles/app.css` | Auth split layout; menu; modal; search; flat button; error banner; header styles |
+
+---
+
+## v4.4 — Star, Rename & Thread Activity
+
+**Previous version (v4.3.2)** replaced the ✕ delete button with a Gemini-style bin icon and added an instant tooltip.
+
+---
+
+### What changed in v4.4
+
+**Star threads**
+- Star any thread to pin it to the top of the sidebar. Click again to unstar.
+- A resting filled star is visible at the far right of the thread item when not hovered. On hover it slides off as the full action row appears.
+
+**Rename threads**
+- Click the pencil icon to rename a thread inline. Enter saves, Escape cancels, blur saves.
+- The original document filename is preserved in the database — clearing a custom name reverts to the filename.
+
+**Thread re-ordering on activity**
+- Sending a message moves the thread to the most recent position in its group. Starred threads stay pinned above unstarred ones.
+
+**Last-activity timestamp**
+- Thread timestamps reflect the last message, not when the chat was created. Updates immediately when a message is sent.
+
+**Title truncation fix**
+- Long document filenames no longer bleed under the action buttons. Title reserves padding for buttons on hover.
+
+**Sidebar label**
+- "RECENT" renamed to "Your Chats".
+
+---
+
+### Files changed in v4.4
+
+| File | What changed |
+|---|---|
+| `backend/routes/threads.js` | Added `PATCH /:threadId`; `GET /` returns `last_message_at`, `custom_title`, `is_starred` |
 | `frontend/src/utils/api.js` | Added `renameThread`, `starThread` |
-| `frontend/src/components/ChatLayout.jsx` | Added `handleRenameThread`, `handleStarThread`, `handleMessageSent` (with re-sort); updated `normalizeThread` |
-| `frontend/src/components/ChatWindow.jsx` | Accepts and calls `onMessageSent` after each successful AI response |
-| `frontend/src/components/Sidebar.jsx` | Full rewrite of thread actions; resting star; last-activity timestamp; "Recent" → "Your Chats" |
-| `frontend/src/styles/app.css` | Unified thread action system; title padding-right fix; resting star styles |
+| `frontend/src/components/ChatLayout.jsx` | Added `handleRenameThread`, `handleStarThread`, `handleMessageSent` |
+| `frontend/src/components/ChatWindow.jsx` | Calls `onMessageSent` after each AI response |
+| `frontend/src/components/Sidebar.jsx` | Star, rename, delete action row; resting star; last-activity timestamp |
+| `frontend/src/styles/app.css` | Thread action system; title padding; resting star animation |
 | `SUPABASE_SETUP.sql` | Added `custom_title`, `is_starred` columns and `idx_threads_starred` index |
-| `SUPABASE_MIGRATION_v4.4.sql` | **New file** — run if upgrading from v4.3.x |
-| `backend/server.js` | Version updated to v4.4 |
-| `backend/package.json` | Version updated to 4.4.0 |
-| `frontend/package.json` | Version updated to 4.4.0 |
-| `README.md` | Version updated to v4.4; project structure updated |
+| `SUPABASE_MIGRATION_v4.4.sql` | New migration — run if upgrading from v4.3.x |
+
+---
+
+## v4.3 — Delete Button & Tooltip Polish
+
+**Previous version (v4.2)** was the last tagged release.
+
+---
+
+### What changed in v4.3
+
+- Replaced the plain ✕ delete button on thread items with a Gemini-style bin icon (SVG trash can).
+- Added an instant custom CSS tooltip on the delete button — appears immediately on hover with no browser delay (same `opacity 0.1s` pattern used for the copy button).
+- `v4.3.2` — minor CSS refinements to the tooltip positioning.
+
+---
+
+## v4.2 — Copy Button & Thinking Indicator (Last Tag)
+
+### What changed in v4.2
+
+**Copy button**
+- Every message has a copy icon next to the timestamp. Hover shows "Copy prompt" or "Copy response". Click copies to clipboard and confirms with a checkmark for 2 seconds. Falls back to `document.execCommand` for older browsers.
+
+**Thinking indicator**
+- While the AI is processing, a status message cycles through phases: "Reading your question…" → "Searching the document…" → "Finding relevant sections…" → "Putting the answer together…" → "Almost there…". Transitions with a fade animation.
+- After the AI responds, a small "Searched document · Ns" label appears above the message showing how long the response took.
+
+**Smart timestamps**
+- Messages show context-aware timestamps: time only for today, "Yesterday · time" for yesterday, date + time for older.
+
+**Auto-focus**
+- The message input auto-focuses after every AI response so the user can keep typing without clicking.
+
+**RAG improvements**
+- Adaptive `topK` — for large documents, the number of chunks retrieved scales with document size (4–10 chunks, capped at 15% of total).
+- Minimum similarity threshold (`RAG_MIN_SIMILARITY=0.35`) filters low-quality vector search results.
+- Query expansion — queries are embedded in both original and lowercase form and averaged, making retrieval case-robust.
+- Small document optimisation — documents with ≤ 25 chunks skip vector search entirely.
+- Summary detection — questions asking for summaries/overviews bypass vector search and send all chunks.

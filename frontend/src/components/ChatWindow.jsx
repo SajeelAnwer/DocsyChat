@@ -149,7 +149,7 @@ export default function ChatWindow({ thread, user, onNewChat, onMessageSent }) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingStartTime, setLoadingStartTime] = useState(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null); // { type: 'quota_daily'|'quota_rpm'|'still_processing'|'generic', message: string }
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
 
@@ -162,7 +162,7 @@ export default function ChatWindow({ thread, user, onNewChat, onMessageSent }) {
       const data = await getMessages(thread.id);
       setMessages(data.messages || []);
     } catch {
-      setError('Failed to load messages.');
+      setError({ type: 'generic', message: 'Failed to load messages.' });
     }
   };
 
@@ -170,7 +170,7 @@ export default function ChatWindow({ thread, user, onNewChat, onMessageSent }) {
     if (!input.trim() || loading) return;
     const text = input.trim();
     setInput('');
-    setError('');
+    setError(null);
     setLoading(true);
     const startTime = Date.now();
     setLoadingStartTime(startTime);
@@ -190,7 +190,15 @@ export default function ChatWindow({ thread, user, onNewChat, onMessageSent }) {
       onMessageSent?.(thread.id);
     } catch (err) {
       setMessages(prev => prev.filter(m => m.id !== 'temp'));
-      setError(err.response?.data?.error || 'Failed to send message. Please try again.');
+      const resp = err.response?.data;
+      const status = err.response?.status;
+      if (status === 429) {
+        setError({ type: resp?.error || 'quota_rpm', message: resp?.message || 'API rate limit reached. Please wait and try again.' });
+      } else if (status === 503 || resp?.error === 'still_processing') {
+        setError({ type: 'still_processing', message: resp?.message || 'Document is still being processed. Please try again in a few seconds.' });
+      } else {
+        setError({ type: 'generic', message: resp?.error || 'Failed to send message. Please try again.' });
+      }
     } finally {
       setLoading(false);
     }
@@ -214,14 +222,23 @@ export default function ChatWindow({ thread, user, onNewChat, onMessageSent }) {
     <>
       {/* Header */}
       <div className="chat-header">
-        <div className="chat-header__file-badge">
-          <div className="chat-header__file-icon">{fileIcon}</div>
+        <span className="chat-header__icon">{fileIcon}</span>
+        {thread.custom_title ? (
+          /* Renamed chat — show custom title + filename below */
           <div className="chat-header__info">
-            <div className="chat-header__filename">{thread.fileName}</div>
-            <div className="chat-header__meta">Document Q&A</div>
+            <span className="chat-header__title">{thread.custom_title}</span>
+            <span className="chat-header__docname">{thread.fileName}</span>
           </div>
-        </div>
-        <button className="chat-header__new" onClick={onNewChat}>+ New</button>
+        ) : (
+          /* Default — just the filename + "Document Q&A" inline */
+          <>
+            <div className="chat-header__info">
+              <span className="chat-header__filename">{thread.fileName}</span>
+            </div>
+            <span className="chat-header__sep">·</span>
+            <span className="chat-header__meta">Document Q&A</span>
+          </>
+        )}
       </div>
 
       {/* Messages */}
@@ -263,10 +280,18 @@ export default function ChatWindow({ thread, user, onNewChat, onMessageSent }) {
         </div>
       </div>
 
-      {/* Error */}
+      {/* Error banner */}
       {error && (
-        <div style={{ padding: '0 28px' }}>
-          <div className="error-toast">⚠️ {error}</div>
+        <div style={{ padding: '0 28px 4px' }}>
+          <div className={`error-banner error-banner--${error.type}`}>
+            <span className="error-banner__icon">
+              {error.type === 'quota_daily' ? '📅' :
+               error.type === 'quota_rpm'   ? '⏱️' :
+               error.type === 'still_processing' ? '⏳' : '⚠️'}
+            </span>
+            <span className="error-banner__text">{error.message}</span>
+            <button className="error-banner__close" onClick={() => setError(null)} aria-label="Dismiss">✕</button>
+          </div>
         </div>
       )}
 

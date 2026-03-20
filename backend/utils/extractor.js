@@ -43,4 +43,4 @@ function truncateDocument(text, maxChars = 30000) {
   return text.substring(0, maxChars) + '\n\n[Document truncated due to length...]';
 }
 
-module.exports = { extractText, truncateDocument };
+module.exports = { extractText };

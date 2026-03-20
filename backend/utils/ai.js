@@ -1,5 +1,21 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const OpenAI = require('openai');
+const { QuotaError } = require('./rag');
+
+// Parse Gemini SDK errors for quota/rate issues
+function extractGeminiQuota(err) {
+  const msg = (err?.message || '').toLowerCase();
+  const status = err?.status || err?.httpStatus || (err?.response?.status);
+  // Daily quota
+  if (msg.includes('quota') && (msg.includes('day') || msg.includes('exhausted') || msg.includes('daily'))) {
+    return new QuotaError('quota_daily', 'Daily API quota reached. Usage resets at midnight Pacific Time — please try again tomorrow.');
+  }
+  // Rate limit (RPM)
+  if (status === 429 || msg.includes('rate') || msg.includes('per minute') || msg.includes('rpm') || msg.includes('resource_exhausted')) {
+    return new QuotaError('quota_rpm', 'API rate limit reached. Please wait about a minute and try again.');
+  }
+  return null;
+}
 
 const SYSTEM_PROMPT = `You are DocsyChat, an AI assistant that helps users understand and explore documents.
 
@@ -46,8 +62,14 @@ async function askGemini(contextText, conversationHistory, userMessage) {
     generationConfig: { maxOutputTokens: 1500, temperature: 0.4 }
   });
 
-  const result = await chat.sendMessage(`${ragContext}\n\nUser: ${userMessage}`);
-  return result.response.text();
+  try {
+    const result = await chat.sendMessage(`${ragContext}\n\nUser: ${userMessage}`);
+    return result.response.text();
+  } catch (err) {
+    const quota = extractGeminiQuota(err);
+    if (quota) throw quota;
+    throw err;
+  }
 }
 
 async function askOpenAI(contextText, conversationHistory, userMessage) {

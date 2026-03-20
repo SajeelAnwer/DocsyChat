@@ -1,7 +1,7 @@
 const express = require('express');
 const supabase = require('../utils/supabase');
 const { askAI } = require('../utils/ai');
-const { retrieveChunks, buildContext } = require('../utils/rag');
+const { retrieveChunks, buildContext, QuotaError } = require('../utils/rag');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -38,18 +38,23 @@ router.post('/:threadId', requireAuth, async (req, res) => {
       .order('created_at', { ascending: true })
       .limit(10);
 
-    // Retrieve context using unified strategy
+    // Retrieve context — handle no-chunks and quota errors separately
     let contextText;
     try {
-      const { chunks, strategy } = await retrieveChunks(thread.document_id, message.trim());
+      const { chunks } = await retrieveChunks(thread.document_id, message.trim());
 
       if (chunks.length === 0) {
-        contextText = 'The document is still being processed. Please try again in a few seconds.';
-        console.warn(`⚠️ No chunks found for document ${thread.document_id}`);
-      } else {
-        contextText = buildContext(chunks);
+        // Document still embedding — roll back user message and tell the client
+        await supabase.from('messages').delete().eq('id', userMsg.id);
+        return res.status(503).json({
+          error: 'still_processing',
+          message: 'Your document is still being processed. Please wait a few seconds and try again.'
+        });
       }
+
+      contextText = buildContext(chunks);
     } catch (ragErr) {
+      if (ragErr instanceof QuotaError) throw ragErr; // let outer catch handle it with proper status
       console.error('RAG error:', ragErr.message);
       throw ragErr;
     }
@@ -88,6 +93,7 @@ router.post('/:threadId', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('❌ Chat error:', err.message);
 
+    // Roll back the saved user message so the user can retry
     await supabase
       .from('messages')
       .delete()
@@ -95,6 +101,14 @@ router.post('/:threadId', requireAuth, async (req, res) => {
       .eq('role', 'user')
       .order('created_at', { ascending: false })
       .limit(1);
+
+    // Return 429 with quota details so the frontend can show a proper banner
+    if (err instanceof QuotaError) {
+      return res.status(429).json({
+        error: err.quotaType,
+        message: err.message
+      });
+    }
 
     res.status(500).json({ error: `Failed to get AI response. ${err.message}` });
   }

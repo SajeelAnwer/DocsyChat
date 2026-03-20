@@ -1,29 +1,29 @@
 :root {
-  /* Core palette — warm cream light theme */
-  --bg-base:      #f5f0e8;
-  --bg-surface:   #faf7f2;
+  /* Core palette — clean white theme */
+  --bg-base:      #f7f8fa;
+  --bg-surface:   #f5f5f7;
   --bg-elevated:  #ffffff;
-  --bg-hover:     #ede8de;
+  --bg-hover:     #f0f0f2;
   --bg-sidebar:   #1a1814;
 
-  /* Borders */
-  --border:       rgba(60, 50, 30, 0.10);
-  --border-mid:   rgba(60, 50, 30, 0.16);
-  --border-dark:  rgba(60, 50, 30, 0.24);
+  /* Borders — neutral, not warm */
+  --border:       rgba(0, 0, 0, 0.08);
+  --border-mid:   rgba(0, 0, 0, 0.13);
+  --border-dark:  rgba(0, 0, 0, 0.20);
 
-  /* Accent — purple */
+  /* Accent — purple (unchanged) */
   --accent:       #7950B0;
   --accent-light: rgba(121, 80, 176, 0.10);
   --accent-glow:  rgba(121, 80, 176, 0.06);
 
-  /* Text */
-  --text-primary:   #1a1814;
-  --text-secondary: #6b6356;
-  --text-muted:     #a89f92;
-  --text-on-dark:   #e8e2d8;
+  /* Text — neutral, not warm-brown */
+  --text-primary:   #111111;
+  --text-secondary: #555555;
+  --text-muted:     #999999;
+  --text-on-dark:   #e8e8e8;
   --text-on-accent: #ffffff;
 
-  /* Sidebar text */
+  /* Sidebar text (unchanged — dark sidebar stays dark) */
   --sidebar-text:        #c8bfb0;
   --sidebar-text-active: #f5f0e8;
   --sidebar-hover:       rgba(255,255,255,0.05);
@@ -43,10 +43,10 @@
   --radius-lg: 16px;
   --radius-xl: 22px;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 3px rgba(30,20,10,0.08), 0 1px 2px rgba(30,20,10,0.04);
-  --shadow-md: 0 4px 16px rgba(30,20,10,0.10), 0 1px 4px rgba(30,20,10,0.06);
-  --shadow-lg: 0 12px 40px rgba(30,20,10,0.14), 0 2px 8px rgba(30,20,10,0.06);
+  /* Shadows — lighter, neutral */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.04);
 }
 
 *, *::before, *::after {
@@ -72,15 +72,8 @@ body {
 
 #root { height: 100%; }
 
-/* Subtle paper texture overlay */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: 9999;
-}
+
+
 
 /* Scrollbars */
 ::-webkit-scrollbar { width: 4px; }

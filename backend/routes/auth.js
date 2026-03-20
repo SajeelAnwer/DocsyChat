@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const supabase = require('../utils/supabase');
-const { sendVerificationEmail } = require('../utils/email');
+const { sendVerificationEmail, sendPasswordResetEmail } = require('../utils/email');
 
 const router = express.Router();
 
@@ -193,6 +193,168 @@ router.get('/me', (req, res) => {
     });
   } catch {
     res.status(401).json({ error: 'Invalid token' });
+  }
+});
+
+// ── DELETE /api/auth/account ──────────────────────────────────────────────
+// Permanently deletes the authenticated user and all their data.
+// Order: messages → threads → document_chunks → documents → verification_codes → user
+const { requireAuth } = require('../middleware/auth');
+
+router.delete('/account', requireAuth, async (req, res) => {
+  const userId = req.user.id;
+  try {
+    // 1. Get all thread IDs for this user
+    const { data: threads } = await supabase
+      .from('threads')
+      .select('id')
+      .eq('user_id', userId);
+
+    const threadIds = (threads || []).map(t => t.id);
+
+    // 2. Delete all messages in those threads
+    if (threadIds.length > 0) {
+      await supabase.from('messages').delete().in('thread_id', threadIds);
+    }
+
+    // 3. Delete all threads
+    await supabase.from('threads').delete().eq('user_id', userId);
+
+    // 4. Get all document IDs for this user
+    const { data: docs } = await supabase
+      .from('documents')
+      .select('id')
+      .eq('user_id', userId);
+
+    const docIds = (docs || []).map(d => d.id);
+
+    // 5. Delete all document chunks
+    if (docIds.length > 0) {
+      await supabase.from('document_chunks').delete().in('document_id', docIds);
+    }
+
+    // 6. Delete all documents
+    await supabase.from('documents').delete().eq('user_id', userId);
+
+    // 7. Delete verification codes
+    await supabase.from('verification_codes').delete().eq('user_id', userId);
+
+    // 8. Delete the user
+    await supabase.from('users').delete().eq('id', userId);
+
+    console.log(`🗑️ Account deleted: user ${userId}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Account deletion error:', err.message);
+    res.status(500).json({ error: 'Failed to delete account. Please try again.' });
+  }
+});
+
+// ── POST /api/auth/forgot-password ────────────────────────────────────────
+// Sends a 6-digit reset code to the user's email if the account exists.
+// Always returns 200 to avoid leaking whether an email is registered.
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required.' });
+
+  try {
+    const { data: user } = await supabase
+      .from('users')
+      .select('id, first_name, is_verified')
+      .eq('email', email.toLowerCase().trim())
+      .single();
+
+    // Always respond the same way — don't reveal if email exists
+    if (!user || !user.is_verified) {
+      return res.json({ success: true, message: 'If that email exists, a reset code has been sent.' });
+    }
+
+    const code = generateCode();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+    // Reuse verification_codes table — upsert so only one code exists at a time
+    await supabase.from('verification_codes').upsert(
+      { user_id: user.id, code, expires_at: expiresAt },
+      { onConflict: 'user_id' }
+    );
+
+    await sendPasswordResetEmail(email.toLowerCase().trim(), user.first_name, code);
+
+    res.json({ success: true, userId: user.id, message: 'If that email exists, a reset code has been sent.' });
+  } catch (err) {
+    console.error('Forgot password error:', err.message);
+    res.status(500).json({ error: 'Failed to send reset code. Please try again.' });
+  }
+});
+
+// ── POST /api/auth/verify-reset-code ─────────────────────────────────────
+// Verifies the 6-digit reset code without changing the password yet.
+// Returns a short-lived resetToken the client uses for the final step.
+router.post('/verify-reset-code', async (req, res) => {
+  const { userId, code } = req.body;
+  if (!userId || !code) return res.status(400).json({ error: 'User ID and code are required.' });
+
+  try {
+    const { data: record } = await supabase
+      .from('verification_codes')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('code', code.trim())
+      .single();
+
+    if (!record) return res.status(400).json({ error: 'Invalid reset code.' });
+    if (new Date(record.expires_at) < new Date()) {
+      return res.status(400).json({ error: 'Reset code has expired. Please start again.' });
+    }
+
+    // Issue a short-lived JWT scoped only for password reset
+    const resetToken = jwt.sign(
+      { userId, purpose: 'password_reset' },
+      process.env.JWT_SECRET,
+      { expiresIn: '15m' }
+    );
+
+    res.json({ success: true, resetToken });
+  } catch (err) {
+    console.error('Verify reset code error:', err.message);
+    res.status(500).json({ error: 'Verification failed. Please try again.' });
+  }
+});
+
+// ── POST /api/auth/reset-password ─────────────────────────────────────────
+// Sets a new password using the resetToken from verify-reset-code.
+router.post('/reset-password', async (req, res) => {
+  const { resetToken, newPassword } = req.body;
+  if (!resetToken || !newPassword) {
+    return res.status(400).json({ error: 'Reset token and new password are required.' });
+  }
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+  }
+
+  try {
+    // Verify and decode the reset token
+    let decoded;
+    try {
+      decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
+    } catch {
+      return res.status(400).json({ error: 'Reset session has expired. Please start again.' });
+    }
+
+    if (decoded.purpose !== 'password_reset') {
+      return res.status(400).json({ error: 'Invalid reset token.' });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await supabase.from('users').update({ password_hash: passwordHash }).eq('id', decoded.userId);
+
+    // Delete the used reset code
+    await supabase.from('verification_codes').delete().eq('user_id', decoded.userId);
+
+    res.json({ success: true, message: 'Password updated. You can now sign in.' });
+  } catch (err) {
+    console.error('Reset password error:', err.message);
+    res.status(500).json({ error: 'Failed to reset password. Please try again.' });
   }
 });
 
