@@ -1,4 +1,4 @@
-# 📄 DocsyChat v4.5 — AI Document Q&A Chatbot
+# 📄 DocsyChat v4.6 — AI Document Q&A Chatbot
 
 A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file and ask questions about it — DocsyChat answers from the document's content using Retrieval-Augmented Generation (RAG). Summarize it, ask specific questions, or dig into details — all grounded in what's actually in the file.
 
@@ -7,24 +7,27 @@ A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file an
 ## ✨ Features
 
 - **Document Q&A** — upload a document and get answers grounded in its content
-- **Adaptive RAG pipeline** — automatically selects the best retrieval strategy based on document size; small documents skip vector search entirely for faster and more accurate responses
+- **Efficient RAG pipeline** — token-aware chunking, batch embedding, and a context token budget keep API usage low and answers sharp
+- **Adaptive retrieval strategy** — automatically picks the best approach based on document size and query type:
+  - Small documents (≤ 6,000 estimated tokens) skip vector search entirely
+  - Summary queries send the full document up to the context budget
+  - Large documents with specific questions use cosine-similarity vector search
+- **Batch embedding** — documents are embedded in batches of up to 50 chunks per API request, drastically reducing quota usage vs one-call-per-chunk
+- **Context token budget** — the app never sends more than ~6,000 tokens of document context per message, keeping chat efficient
 - **Summary detection** — asking for a summary or overview sends the full document to the model instead of running vector search
-- **Case-robust retrieval** — query expansion ensures results are consistent regardless of how you capitalize your question
-- **Thinking indicator** — while DocsyChat is processing, a status message shows what it's doing. After it responds, a small label shows how long it took
 - **Copy button** — every message has a copy button next to the timestamp. Hover to see "Copy prompt" or "Copy response", click to copy. Confirms with a checkmark
-- **Star chats** — star any thread to pin it to the top of the sidebar. A resting star is visible at rest; hovering reveals the full action row
-- **Rename threads** — click the rename button on any thread to give it a custom name inline. Press Enter to save or Escape to cancel
-- **Search chats** — a persistent search box in the sidebar filters threads in real time by chat name or document filename. Clicking outside or pressing Escape clears it
-- **Forgot password** — email-based password reset with a 6-digit code, same flow as signup verification
-- **Account management** — a three-dot menu at the bottom of the sidebar provides Sign out and Delete account options. Deleting an account permanently removes all data
-- **API quota error handling** — when the Gemini API quota is hit, DocsyChat shows a clear banner telling the user whether to wait a minute (rate limit) or try again tomorrow (daily quota)
+- **Thinking indicator** — while DocsyChat is processing, a status message shows what it's doing. After it responds, a small label shows how long it took
+- **Star chats** — star any thread to pin it to the top of the sidebar
+- **Rename threads** — give any chat a custom name inline
+- **Search chats** — a persistent search box in the sidebar filters threads in real time
+- **Forgot password** — email-based password reset with a 6-digit code
+- **Account management** — three-dot menu with Sign out and Delete account options
+- **API quota error handling** — clear, dismissible banners for Gemini daily quota and rate limit errors
 - **Auto-focus input** — the message box becomes active automatically after every response
-- **Smart timestamps** — messages show a context-aware date and time. Thread timestamps reflect the last message, not when the chat was created
-- **Email authentication** — signup with email and password, verified via a 6-digit code sent to your inbox
+- **Smart timestamps** — messages show context-aware date and time; thread timestamps reflect last activity
+- **Email authentication** — signup with email and password, verified via a 6-digit code
 - **Persistent storage** — all users, documents, threads, and messages stored in Supabase PostgreSQL
-- **Conversation history** — chat threads persist across sessions with full message history
 - **Multi-provider AI** — defaults to Google Gemini, configurable to OpenAI
-- **Clean white UI** — Fraunces + Instrument Sans typography, purple accent, dark sidebar
 
 ---
 
@@ -68,7 +71,7 @@ A full-stack AI-powered document Q&A chatbot. Upload a PDF, DOCX, or TXT file an
 ## 📁 Project Structure
 
 ```
-DocsyChat_v4.5/
+DocsyChat_v4.6/
 ├── backend/
 │   ├── middleware/
 │   │   └── auth.js               # JWT auth middleware — protects all non-auth routes
@@ -81,7 +84,7 @@ DocsyChat_v4.5/
 │   │   ├── ai.js                 # Gemini / OpenAI chat abstraction with quota error detection
 │   │   ├── email.js              # Nodemailer — verification and password reset emails
 │   │   ├── extractor.js          # PDF / DOCX / TXT text extraction + cleanup
-│   │   ├── rag.js                # Chunking, embedding, adaptive retrieval, QuotaError class
+│   │   ├── rag.js                # Chunking, batch embedding, adaptive retrieval, context budget
 │   │   └── supabase.js           # Supabase client initialisation
 │   ├── .env.example              # Environment variable template — copy to .env and fill in
 │   ├── package.json
@@ -110,6 +113,8 @@ DocsyChat_v4.5/
 └── README.md
 ```
 
+> **No new migration needed for v4.6.** The database schema is unchanged from v4.5. The RAG improvements are entirely in `backend/utils/rag.js`.
+
 ---
 
 ## 🚀 Setup & Installation
@@ -132,6 +137,7 @@ DocsyChat_v4.5/
 This creates all 6 tables, indexes, and the `match_chunks` vector similarity function. Only needed once.
 
 > **Upgrading from v4.3.x?** Also run `SUPABASE_MIGRATION_v4.4.sql` in the SQL Editor.
+> **Upgrading from v4.5?** No migration needed — drop in the new `backend/utils/rag.js` and update your `.env`.
 
 ---
 
@@ -163,19 +169,10 @@ PORT=5000
 MAX_FILE_SIZE_MB=10
 
 # RAG tuning
-RAG_TOP_K=10
-RAG_CHUNK_SIZE=1000
-RAG_CHUNK_OVERLAP=100
 RAG_MIN_SIMILARITY=0.35
 ```
 
-**Gemini API Key:** [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) → Create API Key
-
-**Supabase credentials:** Supabase Dashboard → Settings → API → Project URL + anon public key
-
-**Gmail App Password:** Google Account → Security → 2-Step Verification ON → App Passwords → create one for DocsyChat
-
-**JWT Secret:** Generate a strong random string at [randomkeygen.com](https://randomkeygen.com)
+> Note: `RAG_TOP_K`, `RAG_CHUNK_SIZE`, and `RAG_CHUNK_OVERLAP` have been removed in v4.6. Chunk sizing is now token-aware and managed internally. Only `RAG_MIN_SIMILARITY` remains configurable.
 
 ---
 
@@ -214,18 +211,29 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## 💡 How RAG Works
 
-**On upload:**
+### On upload
 1. Text is extracted from the file
-2. Split into sentence-aware chunks (~1,000 characters each, 100-character overlap)
-3. Each chunk is embedded using `gemini-embedding-001` (1536 dimensions) and stored in Supabase via pgvector
+2. Split into sentence-aware chunks targeting **~400 tokens each** (~1,400 characters)
+3. Chunks are embedded in batches of up to 50 per API request using `gemini-embedding-001` (1536 dimensions) and stored in Supabase via pgvector
 
-**On each message — three strategies used automatically:**
+### On each message — three strategies, chosen automatically
 
 | Situation | Strategy |
 |---|---|
-| Document has ≤ 25 chunks | All chunks sent directly — no vector search |
-| Summary or overview question | All chunks sent directly — no vector search |
-| Large document + specific question | Vector search — top chunks by cosine similarity |
+| Document is ≤ ~6,000 estimated tokens | All chunks sent directly — no vector search |
+| Summary or overview question | All chunks sent directly (up to 6,000 token budget) |
+| Large document + specific question | Vector search — top chunks by cosine similarity, sorted by document position |
+
+All strategies apply a **6,000-token context budget** — the app never sends more context than this to the chat model in a single message.
+
+### Embedding API usage (v4.6 vs v4.5)
+
+| Scenario | v4.5 API calls | v4.6 API calls |
+|---|---|---|
+| Upload a 100-chunk document | 100 | 2 |
+| Upload a 200-chunk document | 200 | 4 |
+| Send a chat message (vector search) | 2 | 1 |
+| Send a chat message (small/summary doc) | 0 | 0 |
 
 ---
 

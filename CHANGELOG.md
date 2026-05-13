@@ -2,6 +2,79 @@
 
 ---
 
+## v4.6 — RAG & Embedding Optimisation
+
+**Previous version (v4.5)** was the beta release sent to friends for testing.
+
+---
+
+### What changed in v4.6
+
+This release is focused entirely on fixing the embedding quota exhaustion problem reported by beta testers and addressing the underlying RAG architecture inefficiencies that caused it.
+
+---
+
+#### Batch embedding (the main fix)
+
+In v4.5, every chunk was embedded with a separate API call. A 2–3 MB document produces roughly 70–120 chunks, meaning 70–120 individual API requests per upload. On the free tier of `gemini-embedding-001`, this burned through the daily quota very quickly when multiple users uploaded documents on the same day.
+
+In v4.6, all chunks are sent to Gemini's `batchEmbedContents` endpoint in groups of up to 50 texts per request. A 100-chunk document now costs **2 API requests** instead of 100. A 500ms delay between batches keeps the app safe on the free tier without the unnecessary 200ms-per-chunk delay that v4.5 used.
+
+#### Token-aware chunking
+
+v4.5 split documents into ~1,000-character chunks with no awareness of how many tokens that represents. The new chunker targets **400 tokens per chunk** (~1,400 characters), which is well under the embedding model's 2,048-token limit and produces more semantically complete chunks. Overlap is ~15% of chunk size (~210 chars) instead of a fixed 100 chars.
+
+The chunker still respects sentence boundaries — it never splits a sentence in the middle unless a single sentence is longer than the target chunk size. When that happens it falls back to word-boundary splitting.
+
+#### Token-based small-doc detection
+
+v4.5 used a hardcoded threshold of 25 chunks to decide whether to skip vector search. This was brittle — it depended on how the document happened to be chunked, not on how much text was actually in it.
+
+v4.6 measures the **estimated total token count** of the document and compares it to the context budget (6,000 tokens). If the whole document fits, it sends the whole document. This is more accurate and scales correctly regardless of chunk size.
+
+#### Context token budget
+
+Every retrieval path — small doc, summary query, and vector search — now passes results through `applyContextBudget()` before building the context string. This guarantees the app never sends more than 6,000 tokens of document context to the chat model in a single message, regardless of document size or retrieval strategy.
+
+#### Simpler query embedding
+
+v4.5 embedded queries twice (original case + lowercase) and averaged the two vectors. This was meant to make retrieval case-robust but doubled the RPM usage for every chat message. In v4.6, queries are simply lowercased before embedding — a single API call that achieves the same normalisation effect.
+
+#### Vector search results sorted by document position
+
+v4.5 returned vector search results in similarity order (highest match first). This caused answers to feel fragmented or out of order when multiple chunks from different parts of the document were retrieved. In v4.6, results are re-sorted by `chunk_index` after filtering, so the context the AI receives reads in document order.
+
+---
+
+### What was NOT changed
+
+- No database schema changes — v4.6 is a drop-in replacement for v4.5.
+- No frontend changes.
+- No auth, email, or thread changes.
+- No changes to the chat model, system prompt, or response behaviour.
+
+---
+
+### Files changed in v4.6
+
+| File | What changed |
+|---|---|
+| `backend/utils/rag.js` | Batch embedding; token-aware chunking; context budget; token-based small-doc threshold; single-call query embedding; result sorting by position |
+| `backend/.env.example` | Removed `RAG_TOP_K`, `RAG_CHUNK_SIZE`, `RAG_CHUNK_OVERLAP` (now internal constants); kept `RAG_MIN_SIMILARITY` |
+
+---
+
+### Embedding API usage comparison
+
+| Scenario | v4.5 API calls | v4.6 API calls |
+|---|---|---|
+| Upload a 100-chunk document | 100 | 2 |
+| Upload a 200-chunk document | 200 | 4 |
+| Send a chat message (vector search) | 2 (original + lowercase) | 1 |
+| Send a chat message (small/summary doc) | 0 | 0 |
+
+---
+
 ## v4.5 — Beta Release
 
 **Previous version (v4.4)** added star/rename threads and last-activity timestamps.
