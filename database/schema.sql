@@ -1,5 +1,5 @@
 -- ============================================================
--- DocsyChat v4.4 — Supabase Database Setup
+-- DocsyChat v4.6 (Stable Baseline) — Supabase Database Setup
 -- Run this entire file in: Supabase Dashboard → SQL Editor
 -- ============================================================
 
@@ -38,7 +38,6 @@ create table if not exists documents (
 );
 
 -- 5. Document chunks table
--- gemini-embedding-001 outputs 3072 dimensions
 create table if not exists document_chunks (
   id          uuid primary key default gen_random_uuid(),
   document_id uuid not null references documents(id) on delete cascade,
@@ -119,7 +118,3 @@ create policy "Allow all for anon" on threads            for all using (true) wi
 create policy "Allow all for anon" on messages           for all using (true) with check (true);
 create policy "Allow all for anon" on document_chunks    for all using (true) with check (true);
 create policy "Allow all for anon" on verification_codes for all using (true) with check (true);
-
--- ============================================================
--- Done! All tables use gemini-embedding-001 (1536 dimensions).
--- ============================================================
